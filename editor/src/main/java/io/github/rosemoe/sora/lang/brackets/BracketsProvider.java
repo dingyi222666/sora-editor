@@ -26,7 +26,10 @@ package io.github.rosemoe.sora.lang.brackets;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import java.util.List;
+
 import io.github.rosemoe.sora.text.Content;
+import io.github.rosemoe.sora.text.TextRange;
 
 /**
  * Interface for providing paired brackets
@@ -45,4 +48,15 @@ public interface BracketsProvider {
     @Nullable
     PairedBracket getPairedBracketAt(@NonNull Content text, int index);
 
+    /**
+     * Get the paired brackets from a line
+     *
+     * @param text The text in editor
+     * @param range The range or the bracket
+     * @return Paired brackets or null if not matched
+     */
+    @Nullable
+    default List<PairedBracket> getPairedBracketsFromRange(@NonNull Content text, TextRange range) {
+        return null;
+    }
 }
