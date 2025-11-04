@@ -2,6 +2,7 @@
   <settings default="LGPL">
     <module2copyright>
       <element module="tm4e-epl-licensed" copyright="tm4e-EPL" />
+      <element module="vscode-source" copyright="vscode" />
     </module2copyright>
     <LanguageOptions name="JAVA">
       <option name="fileTypeOverride" value="3" />
