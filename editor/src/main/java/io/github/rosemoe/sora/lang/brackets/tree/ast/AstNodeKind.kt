@@ -1,7 +1,16 @@
-/*
+/*******************************************************************************
+ * ---------------------------------------------------------------------------------------------
+ *  *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  *--------------------------------------------------------------------------------------------
+ ******************************************************************************/
+
+package io.github.rosemoe.sora.lang.brackets.tree.ast
+
+/*******************************************************************************
  *    sora-editor - the awesome code editor for Android
  *    https://github.com/Rosemoe/sora-editor
- *    Copyright (C) 2020-2024  Rosemoe
+ *    Copyright (C) 2020-2025  Rosemoe
  *
  *     This library is free software; you can redistribute it and/or
  *     modify it under the terms of the GNU Lesser General Public
@@ -20,31 +29,11 @@
  *
  *     Please contact Rosemoe by email 2073412493@qq.com if you need
  *     additional information or have any questions
- */
-package io.github.rosemoe.sora.lang.brackets;
-
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
-
-import java.util.List;
-
-import io.github.rosemoe.sora.text.Content;
-import io.github.rosemoe.sora.text.TextRange;
-
-/**
- * Interface for providing paired brackets
- *
- * @author Rosemoe
- */
-public interface BracketsProvider {
-
-    /**
-     * Get left and right brackets position in text
-     *
-     * @param text  The text in editor
-     * @param index Index of cursor in text
-     * @return Paired positions or null if not matched
-     */
-    @Nullable
-    PairedBracket getPairedBracketAt(@NonNull Content text, int index);
+ ******************************************************************************/
+enum class AstNodeKind(val value: Int) {
+    Text(0),
+    Bracket(1),
+    Pair(2),
+    UnexpectedClosingBracket(3),
+    List(4)
 }
