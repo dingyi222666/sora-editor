@@ -24,6 +24,9 @@
 
 package io.github.rosemoe.sora.lang.analysis
 
+import io.github.rosemoe.sora.text.CharPosition
+import io.github.rosemoe.sora.text.TextRange
+
 /**
  * Describe the range of a style update
  *
@@ -40,5 +43,4 @@ interface StyleUpdateRange {
      * Get a new iterator for line indices in range
      */
     fun lineIndexIterator(maxLineIndex: Int): IntIterator
-
 }

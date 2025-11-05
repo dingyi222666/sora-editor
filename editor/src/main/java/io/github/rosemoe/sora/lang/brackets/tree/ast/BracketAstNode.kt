@@ -7,9 +7,9 @@
 
 package io.github.rosemoe.sora.lang.brackets.tree.ast
 
+import io.github.rosemoe.sora.lang.brackets.BracketKind
 import io.github.rosemoe.sora.lang.brackets.tree.Length
 import io.github.rosemoe.sora.lang.brackets.tree.SmallImmutableSet
-import io.github.rosemoe.sora.lang.brackets.tree.tokenizer.BracketKind
 import io.github.rosemoe.sora.lang.brackets.tree.tokenizer.OpeningBracketId
 import io.github.rosemoe.sora.text.ContentReference
 

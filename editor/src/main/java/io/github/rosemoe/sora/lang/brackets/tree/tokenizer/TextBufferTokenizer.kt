@@ -99,7 +99,7 @@ private class NonPeekableTextBufferTokenizer(
     /** Must be a zero line token. The end of the document cannot be peeked. */
     private var peekedToken: Token? = null
 
-    private var reader: Spans.Reader? = null;
+    private var reader: Spans.Reader? = null
 
     fun setPosition(lineIdx: Int, column: Int) {
         // We must not jump into a token!
@@ -124,7 +124,7 @@ private class NonPeekableTextBufferTokenizer(
 
     fun read(): Token? {
 
-        val reader = this.reader ?: spans.read();
+        val reader = this.reader ?: spans.read()
         this.reader = reader
 
         if (peekedToken != null) {
@@ -142,7 +142,7 @@ private class NonPeekableTextBufferTokenizer(
         }
 
         if (line == null) {
-            lineTokens = reader.getSpansOnLine(lineIdx);
+            lineTokens = reader.getSpansOnLine(lineIdx)
             line = textModel.getLine(lineIdx)
             lineTokenOffset = if (lineCharOffset == 0) {
                 0
@@ -222,7 +222,7 @@ private class NonPeekableTextBufferTokenizer(
                     break
                 }
                 lineIdx++
-                this.lineTokens = reader.getSpansOnLine(lineIdx);
+                this.lineTokens = reader.getSpansOnLine(lineIdx)
                 lineTokenOffset = 0
                 this.line = textModel.getLine(lineIdx)
                 lineCharOffset = 0
@@ -259,10 +259,10 @@ private class NonPeekableTextBufferTokenizer(
     }
 
     fun List<Span>.getMetadata(offset: Int): Int? {
-        val style =  get(offset).style
-        val tokenType =  TextStyle.getTokenType(style)
+        val style = get(offset).style
+        val tokenType = TextStyle.getTokenType(style)
 
-        return if (tokenType == -1)  null else tokenType
+        return if (tokenType == -1) null else tokenType
     }
 
     fun List<Span>.getEndOffset(offset: Int): Int {

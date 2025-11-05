@@ -24,7 +24,14 @@ class Immutable23ListAstNode(
 ) : TwoThreeListAstNode(length, listHeight, item1, item2, item3, missingOpeningBracketIds) {
 
     override fun toMutable(): ListAstNode {
-        return TwoThreeListAstNode(this.length, this.listHeight, this.item1, this.item2, this.item3, this.missingOpeningBracketIds)
+        return TwoThreeListAstNode(
+            this.length,
+            this.listHeight,
+            this.item1,
+            this.item2,
+            this.item3,
+            this.missingOpeningBracketIds
+        )
     }
 
     override fun throwIfImmutable() {

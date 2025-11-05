@@ -39,7 +39,8 @@ abstract class ListAstNode(
             return null
         }
         val lastChild = getChild(childCount - 1)!!
-        val mutable = if (lastChild.kind == AstNodeKind.List) (lastChild as ListAstNode).toMutable() else lastChild
+        val mutable =
+            if (lastChild.kind == AstNodeKind.List) (lastChild as ListAstNode).toMutable() else lastChild
         if (lastChild !== mutable) {
             setChild(childCount - 1, mutable)
         }
@@ -53,7 +54,8 @@ abstract class ListAstNode(
             return null
         }
         val firstChild = getChild(0)!!
-        val mutable = if (firstChild.kind == AstNodeKind.List) (firstChild as ListAstNode).toMutable() else firstChild
+        val mutable =
+            if (firstChild.kind == AstNodeKind.List) (firstChild as ListAstNode).toMutable() else firstChild
         if (firstChild !== mutable) {
             setChild(0, mutable)
         }
@@ -125,7 +127,8 @@ abstract class ListAstNode(
         for (i in 0 until this.childrenLength) {
             val child = this.getChild(i)
             if (child != null) {
-                minIndentation = minOf(minIndentation, child.computeMinIndentation(childOffset, content))
+                minIndentation =
+                    minOf(minIndentation, child.computeMinIndentation(childOffset, content))
                 childOffset += child.length
             }
         }
@@ -156,7 +159,12 @@ abstract class ListAstNode(
         /**
          * This method uses more memory-efficient list nodes that can only store 2 or 3 children.
          */
-        fun create23(item1: BaseAstNode, item2: BaseAstNode, item3: BaseAstNode?, immutable: Boolean = false): ListAstNode {
+        fun create23(
+            item1: BaseAstNode,
+            item2: BaseAstNode,
+            item3: BaseAstNode?,
+            immutable: Boolean = false
+        ): ListAstNode {
             var length = item1.length
             var missingBracketIds = item1.missingOpeningBracketIds
 
@@ -175,9 +183,23 @@ abstract class ListAstNode(
                 missingBracketIds = missingBracketIds.merge(item3.missingOpeningBracketIds)
             }
             return if (immutable)
-                Immutable23ListAstNode(length, item1.listHeight + 1, item1, item2, item3, missingBracketIds)
+                Immutable23ListAstNode(
+                    length,
+                    item1.listHeight + 1,
+                    item1,
+                    item2,
+                    item3,
+                    missingBracketIds
+                )
             else
-                TwoThreeListAstNode(length, item1.listHeight + 1, item1, item2, item3, missingBracketIds)
+                TwoThreeListAstNode(
+                    length,
+                    item1.listHeight + 1,
+                    item1,
+                    item2,
+                    item3,
+                    missingBracketIds
+                )
         }
 
         fun create(items: List<BaseAstNode>, immutable: Boolean = false): ListAstNode {
@@ -191,14 +213,29 @@ abstract class ListAstNode(
                     unopenedBrackets = unopenedBrackets.merge(items[i].missingOpeningBracketIds)
                 }
                 return if (immutable)
-                    ImmutableArrayListAstNode(length, items[0].listHeight + 1, items, unopenedBrackets)
+                    ImmutableArrayListAstNode(
+                        length,
+                        items[0].listHeight + 1,
+                        items,
+                        unopenedBrackets
+                    )
                 else
-                    ArrayListAstNode(length, items[0].listHeight + 1, items.toMutableList(), unopenedBrackets)
+                    ArrayListAstNode(
+                        length,
+                        items[0].listHeight + 1,
+                        items.toMutableList(),
+                        unopenedBrackets
+                    )
             }
         }
 
         fun getEmpty(): ListAstNode {
-            return ImmutableArrayListAstNode(Length.ZERO, 0, emptyList(), SmallImmutableSet.getEmpty())
+            return ImmutableArrayListAstNode(
+                Length.ZERO,
+                0,
+                emptyList(),
+                SmallImmutableSet.getEmpty()
+            )
         }
     }
 }

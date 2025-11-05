@@ -86,17 +86,21 @@ class BeforeEditPositionMapper(
                 val nextEditEndOffsetInCurObj = nextEditEndOffsetInCur.charPosition
 
                 // Before applying the edit, what is its end offset (considering all previous edits)?
-                val nextEditEndOffsetBeforeInCurObj = translateOldToCur(nextEdit.endOffsetBeforeObj).charPosition
+                val nextEditEndOffsetBeforeInCurObj =
+                    translateOldToCur(nextEdit.endOffsetBeforeObj).charPosition
 
-                val lineDelta = nextEditEndOffsetInCurObj.line - nextEditEndOffsetBeforeInCurObj.line
+                val lineDelta =
+                    nextEditEndOffsetInCurObj.line - nextEditEndOffsetBeforeInCurObj.line
                 deltaOldToNewLineCount += lineDelta
 
-                val previousColumnDelta = if (deltaLineIdxInOld == nextEdit.endOffsetBeforeObj.line - 1) {
-                    deltaOldToNewColumnCount
-                } else {
-                    0
-                }
-                val columnDelta = nextEditEndOffsetInCurObj.column - nextEditEndOffsetBeforeInCurObj.column
+                val previousColumnDelta =
+                    if (deltaLineIdxInOld == nextEdit.endOffsetBeforeObj.line - 1) {
+                        deltaOldToNewColumnCount
+                    } else {
+                        0
+                    }
+                val columnDelta =
+                    nextEditEndOffsetInCurObj.column - nextEditEndOffsetBeforeInCurObj.column
                 deltaOldToNewColumnCount = previousColumnDelta + columnDelta
                 deltaLineIdxInOld = nextEdit.endOffsetBeforeObj.line - 1
             } else {

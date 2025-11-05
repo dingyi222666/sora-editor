@@ -44,14 +44,15 @@ class TextAstNode(length: Length) : BaseAstNode(length) {
     override fun computeMinIndentation(offset: Length, content: ContentReference): Int {
         // Text ast nodes don't have partial indentation (ensured by the tokenizer).
         // Thus, if this text node does not start at column 0, the first line cannot have any indentation at all.
-        val startLineNumber = (if (offset.columnCount == 0) offset.lineCount else offset.lineCount + 1) + 1
+        val startLineNumber =
+            (if (offset.columnCount == 0) offset.lineCount else offset.lineCount + 1) + 1
         val endLineNumber = (offset + this.length).lineCount + 1
 
         var result = Int.MAX_VALUE
 
         for (lineNumber in startLineNumber..endLineNumber) {
             val firstNonWsColumn = content.getColumnCount(lineNumber)
-            val lineContent = content.getLine(lineNumber)
+            content.getLine(lineNumber)
             if (firstNonWsColumn == 0) {
                 continue
             }

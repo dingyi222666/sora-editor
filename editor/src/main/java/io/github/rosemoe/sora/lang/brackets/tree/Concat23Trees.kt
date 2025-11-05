@@ -5,7 +5,6 @@
 
 package io.github.rosemoe.sora.lang.brackets.tree
 
-import io.github.rosemoe.sora.lang.brackets.tree.ast.AstNodeKind
 import io.github.rosemoe.sora.lang.brackets.tree.ast.BaseAstNode
 import io.github.rosemoe.sora.lang.brackets.tree.ast.ListAstNode
 import kotlin.math.abs
@@ -45,7 +44,7 @@ fun concat23Trees(items: MutableList<BaseAstNode>): BaseAstNode? {
             val slice = if (start == 0 && i == items.size) {
                 items
             } else {
-                items.subtract(start until i)
+                items.subList(start, i)
             }
             concat23TreesOfSameHeight(slice.toMutableList(), false)
         } else {
@@ -125,10 +124,12 @@ fun BaseAstNode.concat(other: BaseAstNode): BaseAstNode {
         this.listHeight == other.listHeight -> {
             ListAstNode.create23(this, other, null, false)
         }
+
         this.listHeight > other.listHeight -> {
             // this is the tree we want to insert into
             (this as ListAstNode).append(other)
         }
+
         else -> {
             (other as ListAstNode).prepend(this)
         }
@@ -152,10 +153,10 @@ fun ListAstNode.append(nodeToAppend: BaseAstNode): BaseAstNode {
             break
         }
         // assert 0 <= nodeToInsert.listHeight < curNode.listHeight
-        if (curNode.kind != AstNodeKind.List) {
+        if (curNode !is ListAstNode) {
             throw IllegalStateException("unexpected")
         }
-        parents.add(curNode as ListAstNode)
+        parents.add(curNode)
         // assert 2 <= curNode.childrenLength <= 3
         curNode = curNode.makeLastElementMutable()!!
     }
@@ -204,10 +205,10 @@ fun ListAstNode.prepend(nodeToPrepend: BaseAstNode): BaseAstNode {
     // assert nodeToInsert.listHeight <= curNode.listHeight
     while (nodeToPrepend.listHeight != curNode.listHeight) {
         // assert 0 <= nodeToInsert.listHeight < curNode.listHeight
-        if (curNode.kind != AstNodeKind.List) {
+        if (curNode !is ListAstNode) {
             throw IllegalStateException("unexpected")
         }
-        parents.add(curNode as ListAstNode)
+        parents.add(curNode)
         // assert 2 <= curNode.childrenFast.length <= 3
         curNode = curNode.makeFirstElementMutable()!!
     }

@@ -13,7 +13,7 @@ import io.github.rosemoe.sora.lang.brackets.tree.tokenizer.OpeningBracketId
 import io.github.rosemoe.sora.text.ContentReference
 
 
-abstract class BaseAstNode(private var mLength: Length) {
+sealed class BaseAstNode(private var mLength: Length) {
     abstract val kind: AstNodeKind
     abstract val childrenLength: Int
 
@@ -52,12 +52,12 @@ abstract class BaseAstNode(private var mLength: Length) {
     /**
      * Flattens all lists in this AST. Only for debugging.
      */
-    abstract fun flattenLists(): BaseAstNode;
+    abstract fun flattenLists(): BaseAstNode
 
     /**
      * Creates a deep clone.
      */
-    abstract fun deepClone(): BaseAstNode;
+    abstract fun deepClone(): BaseAstNode
 
-    abstract fun computeMinIndentation(offset: Length, content: ContentReference): Int;
+    abstract fun computeMinIndentation(offset: Length, content: ContentReference): Int
 }

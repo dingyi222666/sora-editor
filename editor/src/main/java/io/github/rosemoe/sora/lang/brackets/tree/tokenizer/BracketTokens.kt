@@ -5,6 +5,8 @@
 
 package io.github.rosemoe.sora.lang.brackets.tree.tokenizer
 
+import io.github.rosemoe.sora.lang.brackets.BracketKind
+import io.github.rosemoe.sora.lang.brackets.BracketsConfiguration
 import io.github.rosemoe.sora.lang.brackets.tree.DenseKeyProvider
 import io.github.rosemoe.sora.lang.brackets.tree.IDenseKeyProvider
 import io.github.rosemoe.sora.lang.brackets.tree.SmallImmutableSet
@@ -103,7 +105,7 @@ class BracketTokens private constructor(
                 map[closingBracket.bracketText] = Token(
                     length,
                     TokenKind.ClosingBracket,
-                    getId(closingBrackets[0]),
+                    getId(closingBrackets.valueAt(0)),
                     bracketIds,
                     BracketAstNode.create(length, closingBracket, bracketIds)
                 )
@@ -126,27 +128,5 @@ private fun prepareBracketForRegExp(str: String): String {
     }
     return escaped
 }
-
-
-interface BracketsConfiguration {
-    val openingBrackets: List<BracketKind>
-    val closingBrackets: List<ClosingBracketKind>
-}
-
-
-open class BracketKind(
-    open val bracketText: String
-) {
-    override fun toString(): String {
-        return "BracketKind(bracketText='$bracketText')"
-    }
-}
-
-
-data class ClosingBracketKind(
-    val openingBrackets: List<BracketKind>,
-    override val bracketText: String
-) : BracketKind(bracketText)
-
 
 val identityKeyProvider = IDenseKeyProvider<Int> { value -> value }

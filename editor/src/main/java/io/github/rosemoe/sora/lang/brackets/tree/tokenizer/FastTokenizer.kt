@@ -9,9 +9,10 @@ import io.github.rosemoe.sora.lang.brackets.tree.Length
 import io.github.rosemoe.sora.lang.brackets.tree.SmallImmutableSet
 import io.github.rosemoe.sora.lang.brackets.tree.ast.TextAstNode
 import io.github.rosemoe.sora.lang.brackets.tree.toLength
+import io.github.rosemoe.sora.text.ContentReference
 
 class FastTokenizer(
-    private val text: String,
+    private val text: ContentReference,
     brackets: BracketTokens
 ) : Tokenizer {
     private var _offset: Length = Length.ZERO
@@ -147,7 +148,7 @@ class FastTokenizer(
     }
 
     override fun getText(): String {
-        return text
+        return text.toString()
     }
 }
 

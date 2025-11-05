@@ -69,8 +69,6 @@ value class Length(val value: Long) {
     companion object {
         val ZERO = Length(0L)
 
-
-
         /**
          * The end must be greater than or equal to the start.
          */
@@ -89,12 +87,12 @@ value class Length(val value: Long) {
     }
 }
 
-fun toLength(lineCount: Int, columnCount: Int): Length {
+internal fun toLength(lineCount: Int, columnCount: Int): Length {
     return Length(IntPair.pack(lineCount, columnCount))
 }
 
 
-fun TextRange.lengthOfRange(): CharPosition {
+internal fun TextRange.lengthOfRange(): CharPosition {
     return if (start.line == end.line) {
         CharPosition(0, start.column - end.column)
     } else {
@@ -103,12 +101,12 @@ fun TextRange.lengthOfRange(): CharPosition {
 }
 
 
-fun String.toLength(): Length {
+internal fun String.toLength(): Length {
     val lines = splitLine()
     return toLength(lines.size, lines.last().length)
 }
 
-fun String.lengthOfStringObj(): CharPosition {
+internal fun String.lengthOfStringObj(): CharPosition {
     val lines = splitLine()
     return CharPosition(lines.size - 1, lines.last().length - 1)
 }
@@ -116,7 +114,7 @@ fun String.lengthOfStringObj(): CharPosition {
 val splitLineRegex = Regex("\r\n|\r|\n")
 
 
-fun String.splitLine(): List<String> {
+internal fun String.splitLine(): List<String> {
     return split(splitLineRegex)
 }
 
@@ -128,6 +126,6 @@ fun lengthHash(length: Length): Int {
     return length.hashCode()
 }
 
-fun <T> Iterable<T>.sumLengths(lengthFn: (T) -> Length): Length {
-    return this.fold(ZERO) { acc, item -> acc + lengthFn(item) }
+internal fun <T> Iterable<T>.sumLengths(lengthFn: (T) -> Length): Length {
+    return fold(ZERO) { acc, item -> acc + lengthFn(item) }
 }

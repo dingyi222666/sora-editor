@@ -22,7 +22,12 @@ class ImmutableArrayListAstNode(
 ) : ArrayListAstNode(length, listHeight, children.toMutableList(), missingOpeningBracketIds) {
 
     override fun toMutable(): ListAstNode {
-        return ArrayListAstNode(this.length, this.listHeight, this.children.toMutableList(), this.missingOpeningBracketIds)
+        return ArrayListAstNode(
+            this.length,
+            this.listHeight,
+            this.children.toMutableList(),
+            this.missingOpeningBracketIds
+        )
     }
 
     override fun throwIfImmutable() {

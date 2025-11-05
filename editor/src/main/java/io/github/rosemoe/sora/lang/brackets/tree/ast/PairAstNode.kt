@@ -35,9 +35,9 @@ class PairAstNode private constructor(
     override val childrenLength = 3
 
     override fun getChild(idx: Int): BaseAstNode? = when (idx) {
-        0 -> openingBracket;
-        1 -> child;
-        2 -> closingBracket;
+        0 -> openingBracket
+        1 -> child
+        2 -> closingBracket
         else -> error("Invalid child index")
     }
 
@@ -54,14 +54,14 @@ class PairAstNode private constructor(
             // This could be improved:
             // Only return false if some next token is neither "undefined" nor a bracket that closes a parent.
 
-            return false;
+            return false
         }
 
         if (openBracketIds.intersects(this.missingOpeningBracketIds)) {
-            return false;
+            return false
         }
 
-        return true;
+        return true
     }
 
     override fun flattenLists(): BaseAstNode {
@@ -69,7 +69,7 @@ class PairAstNode private constructor(
             openingBracket.flattenLists(),
             child?.flattenLists(),
             closingBracket?.flattenLists()
-        );
+        )
     }
 
     override fun deepClone(): PairAstNode {
@@ -96,7 +96,7 @@ class PairAstNode private constructor(
             child: BaseAstNode?,
             closingBracket: BracketAstNode?
         ): PairAstNode {
-            var length = openingBracket.length;
+            var length = openingBracket.length
             if (child != null) {
                 length += child.length
             }
@@ -109,7 +109,7 @@ class PairAstNode private constructor(
                 child,
                 closingBracket,
                 child?.missingOpeningBracketIds ?: SmallImmutableSet.getEmpty()
-            );
+            )
         }
     }
 }

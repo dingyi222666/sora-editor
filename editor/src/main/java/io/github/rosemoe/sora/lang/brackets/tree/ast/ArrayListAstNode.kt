@@ -37,7 +37,12 @@ open class ArrayListAstNode(
 
     override fun deepClone(): ListAstNode {
         val children = _children.map { it.deepClone() }.toMutableList()
-        return ArrayListAstNode(this.length, this.listHeight, children, this.missingOpeningBracketIds)
+        return ArrayListAstNode(
+            this.length,
+            this.listHeight,
+            children,
+            this.missingOpeningBracketIds
+        )
     }
 
     override fun appendChildOfSameHeight(node: BaseAstNode) {
