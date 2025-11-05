@@ -25,7 +25,7 @@
 package io.github.rosemoe.sora.editor.ts
 
 import com.itsaky.androidide.treesitter.TSQueryCursor
-import io.github.rosemoe.sora.lang.brackets.BracketsProvider
+import io.github.rosemoe.sora.lang.brackets.BaseBracketsProvider
 import io.github.rosemoe.sora.lang.brackets.PairedBracket
 import io.github.rosemoe.sora.text.Content
 import java.lang.Math.max
@@ -33,7 +33,7 @@ import java.lang.Math.max
 class TsBracketPairs(
     private val safeTree: SafeTsTree,
     private val languageSpec: TsLanguageSpec
-) : BracketsProvider {
+) : BaseBracketsProvider() {
 
     companion object {
 
@@ -42,7 +42,7 @@ class TsBracketPairs(
 
     }
 
-    override fun getPairedBracketAt(text: Content, index: Int): PairedBracket? {
+    override fun onGetPairedBracketAt(text: Content, index: Int): PairedBracket? {
         if (languageSpec.bracketsQuery.canAccess() && languageSpec.bracketsQuery.patternCount > 0) {
             TSQueryCursor.create().use { cursor ->
                 cursor.setByteRange(max(0, index - 1) * 2, index * 2 + 1)
@@ -98,14 +98,6 @@ class TsBracketPairs(
             }
         }
         return null
-    }
-
-    override fun getPairedBracketsAtRange(
-        text: Content,
-        leftPosition: Long,
-        rightPosition: Long
-    ): List<PairedBracket?>? {
-        TODO("Not yet implemented")
     }
 
 }

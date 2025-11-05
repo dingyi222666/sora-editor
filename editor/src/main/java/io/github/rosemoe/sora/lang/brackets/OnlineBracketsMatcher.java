@@ -1,7 +1,7 @@
 /*
  *    sora-editor - the awesome code editor for Android
  *    https://github.com/Rosemoe/sora-editor
- *    Copyright (C) 2020-2024  Rosemoe
+ *    Copyright (C) 2020-2025  Rosemoe
  *
  *     This library is free software; you can redistribute it and/or
  *     modify it under the terms of the GNU Lesser General Public
@@ -24,9 +24,6 @@
 package io.github.rosemoe.sora.lang.brackets;
 
 import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
-
-import java.util.List;
 
 import io.github.rosemoe.sora.text.Content;
 
@@ -35,7 +32,7 @@ import io.github.rosemoe.sora.text.Content;
  *
  * @author Rosemoe
  */
-public class OnlineBracketsMatcher implements BracketsProvider {
+public class OnlineBracketsMatcher extends BaseBracketsProvider {
 
     private final char[] pairs;
     private final int limit;
@@ -101,7 +98,7 @@ public class OnlineBracketsMatcher implements BracketsProvider {
     }
 
     @Override
-    public PairedBracket getPairedBracketAt(@NonNull Content text, int index) {
+    protected PairedBracket onGetPairedBracketAt(@NonNull Content text, int index) {
         PairedBracket pairedBracket = null;
         if (index > 0) {
             pairedBracket = tryComputePaired(text, index - 1);
@@ -110,11 +107,5 @@ public class OnlineBracketsMatcher implements BracketsProvider {
             pairedBracket = tryComputePaired(text, index);
         }
         return pairedBracket;
-    }
-
-    @Nullable
-    @Override
-    public List<PairedBracket> getPairedBracketsAtRange(@NonNull Content text, long leftPosition, long rightPosition) {
-        return null;
     }
 }

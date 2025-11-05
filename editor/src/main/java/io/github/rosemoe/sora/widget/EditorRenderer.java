@@ -586,6 +586,8 @@ public class EditorRenderer {
         canvas.save();
         canvas.clipRect(0, stuckLineCount * editor.getRowHeight(), editor.getWidth(), editor.getHeight());
         drawRows(canvas, textOffset, postDrawLineNumbers, postDrawCursor, postDrawCurrentLines, firstLn);
+
+        patchBracketPairColorization(canvas, textOffset);
         patchHighlightedDelimiters(canvas, textOffset);
         drawDiagnosticIndicators(canvas, offsetX);
         canvas.restore();
@@ -2389,13 +2391,13 @@ public class EditorRenderer {
         if (controller.isInSnippet()) {
             var editing = controller.getEditingTabStop();
             if (editing != null) {
-                patchTextRegionWithColor(canvas, textOffset, editing.getStartIndex(), editing.getEndIndex(), 0, editor.getColorScheme().getColor(EditorColorScheme.SNIPPET_BACKGROUND_EDITING), 0);
+                patchTextRegionWithColor(canvas, textOffset, editing.getStartIndex(), editing.getEndIndex(), 0, editor.getColorScheme().getColor(EditorColorScheme.SNIPPET_BACKGROUND_EDITING), 0,true);
             }
             for (SnippetItem snippetItem : controller.getEditingRelatedTabStops()) {
-                patchTextRegionWithColor(canvas, textOffset, snippetItem.getStartIndex(), snippetItem.getEndIndex(), 0, editor.getColorScheme().getColor(EditorColorScheme.SNIPPET_BACKGROUND_RELATED), 0);
+                patchTextRegionWithColor(canvas, textOffset, snippetItem.getStartIndex(), snippetItem.getEndIndex(), 0, editor.getColorScheme().getColor(EditorColorScheme.SNIPPET_BACKGROUND_RELATED), 0,true);
             }
             for (SnippetItem snippetItem : controller.getInactiveTabStops()) {
-                patchTextRegionWithColor(canvas, textOffset, snippetItem.getStartIndex(), snippetItem.getEndIndex(), 0, editor.getColorScheme().getColor(EditorColorScheme.SNIPPET_BACKGROUND_INACTIVE), 0);
+                patchTextRegionWithColor(canvas, textOffset, snippetItem.getStartIndex(), snippetItem.getEndIndex(), 0, editor.getColorScheme().getColor(EditorColorScheme.SNIPPET_BACKGROUND_INACTIVE), 0,true);
             }
         }
     }
@@ -2404,7 +2406,7 @@ public class EditorRenderer {
         if (editor.inputConnection.composingText.isComposing() || !editor.getProps().highlightMatchingDelimiters || editor.getCursor().isSelected()) {
             return;
         }
-        var paired = editor.styleDelegate.getFoundBracketPair();
+        var paired = editor.styleDelegate.getMatchedBracketPair();
         if (paired != null) {
             var color = editor.getColorScheme().getColor(EditorColorScheme.HIGHLIGHTED_DELIMITERS_FOREGROUND);
             var backgroundColor = editor.getColorScheme().getColor(EditorColorScheme.HIGHLIGHTED_DELIMITERS_BACKGROUND);
@@ -2414,8 +2416,34 @@ public class EditorRenderer {
                 return;
             }
 
-            patchTextRegionWithColor(canvas, textOffset, paired.leftIndex, paired.leftIndex + paired.leftLength, color, backgroundColor, underlineColor);
-            patchTextRegionWithColor(canvas, textOffset, paired.rightIndex, paired.rightIndex + paired.rightLength, color, backgroundColor, underlineColor);
+            patchTextRegionWithColor(canvas, textOffset, paired.leftIndex, paired.leftIndex + paired.leftLength, color, backgroundColor, underlineColor,true);
+            patchTextRegionWithColor(canvas, textOffset, paired.rightIndex, paired.rightIndex + paired.rightLength, color, backgroundColor, underlineColor,true);
+        }
+    }
+
+    private void patchBracketPairColorization(Canvas canvas, float textOffset) {
+        if (!editor.getProps().highlightMatchingDelimiters) {
+            return;
+        }
+        var brackets = editor.styleDelegate.getBracketsInRange();
+
+        if (brackets == null) {
+            return;
+        }
+
+        var colors = new int[]{
+                editor.getColorScheme().getColor(EditorColorScheme.BRACKET_HIGHLIGHTING_FOREGROUND_1),
+                editor.getColorScheme().getColor(EditorColorScheme.BRACKET_HIGHLIGHTING_FOREGROUND_2),
+                editor.getColorScheme().getColor(EditorColorScheme.BRACKET_HIGHLIGHTING_FOREGROUND_3)
+        };
+
+        for (var paired : brackets) {
+            if (!isInvalidTextBounds(paired.leftIndex, paired.leftLength)) {
+                patchTextRegionWithColor(canvas, textOffset, paired.leftIndex, paired.leftIndex + paired.leftLength, colors[paired.level % 3], 0, 0,false);
+            }
+            if (!isInvalidTextBounds(paired.rightIndex, paired.rightLength)) {
+                patchTextRegionWithColor(canvas, textOffset, paired.rightIndex, paired.rightIndex + paired.rightLength, colors[paired.level % 3], 0, 0,false);
+            }
         }
     }
 
@@ -2423,11 +2451,13 @@ public class EditorRenderer {
         return (index < 0 || length < 0 || index + length > content.length());
     }
 
-    protected void patchTextRegionWithColor(Canvas canvas, float textOffset, int start, int end, int color, int backgroundColor, int underlineColor) {
+    protected void patchTextRegionWithColor(Canvas canvas, float textOffset,
+                                            int start, int end, int color, int backgroundColor, int underlineColor,
+                                            boolean withFactor) {
         paintGeneral.setColor(color);
-        paintOther.setStrokeWidth(editor.getRowHeightOfText() * RenderingConstants.MATCHING_DELIMITERS_UNDERLINE_WIDTH_FACTOR);
+        paintOther.setStrokeWidth(withFactor ? editor.getRowHeightOfText() * RenderingConstants.MATCHING_DELIMITERS_UNDERLINE_WIDTH_FACTOR : editor.getRowHeightOfText());
         
-        var useBoldStyle = editor.getProps().boldMatchingDelimiters;
+        var useBoldStyle = withFactor && editor.getProps().boldMatchingDelimiters;
         paintGeneral.setStyle(useBoldStyle ? Paint.Style.FILL_AND_STROKE : Paint.Style.FILL);
         paintGeneral.setFakeBoldText(useBoldStyle);
 

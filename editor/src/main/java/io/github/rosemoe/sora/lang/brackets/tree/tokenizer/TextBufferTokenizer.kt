@@ -8,8 +8,6 @@
 package io.github.rosemoe.sora.lang.brackets.tree.tokenizer
 
 import io.github.rosemoe.sora.lang.brackets.tree.Length
-import io.github.rosemoe.sora.lang.brackets.tree.SmallImmutableSet
-import io.github.rosemoe.sora.lang.brackets.tree.ast.TextAstNode
 import io.github.rosemoe.sora.lang.brackets.tree.toLength
 import io.github.rosemoe.sora.lang.styling.Span
 import io.github.rosemoe.sora.lang.styling.Spans
@@ -60,7 +58,9 @@ class TextBufferTokenizer(
     override fun read(): Token? {
         val token: Token? = if (peeked != null) {
             didPeek = false
-            peeked
+            val value = peeked
+            peeked = null
+            value
         } else {
             reader.read()
         }
@@ -154,9 +154,9 @@ private class NonPeekableTextBufferTokenizer(
             lineCharOffset += lengthGetColumnCountIfZeroLineCount(token.length)
             return token
         }
-
-        if (lineIdx > textBufferLineCount  ||
-            (lineIdx == textBufferLineCount  && lineCharOffset >= textBufferLastLineLength)
+      
+        if (lineIdx > textBufferLineCount -1 ||
+            (lineIdx == textBufferLineCount -1  && lineCharOffset >= textBufferLastLineLength)
         ) {
             // We are after the end
             return null
@@ -222,7 +222,6 @@ private class NonPeekableTextBufferTokenizer(
                 if (peekedBracketToken != null) {
                     // Don't skip the entire token, as a single token could contain multiple brackets
                     if (startLineIdx != lineIdx || startLineCharOffset != lineCharOffset) {
-                        println("$peekedBracketToken $startLineIdx $lineIdx $startLineCharOffset $lineCharOffset")
                         // There is text before the bracket
                         this.peekedToken = peekedBracketToken
                         break
@@ -268,13 +267,7 @@ private class NonPeekableTextBufferTokenizer(
         // unless the line is too long.
         // Thus, the min indentation of the document is the minimum min indentation of every text node.
         val length = Length.lengthDiff(startLineIdx, startLineCharOffset, lineIdx, lineCharOffset)
-        return Token(
-            length,
-            TokenKind.Text,
-            -1,
-            SmallImmutableSet.getEmpty(),
-            TextAstNode(length)
-        )
+        return TokenAllocator.obtainTextToken(length)
     }
 
     fun List<Span>.getMetadata(offset: Int): Int? {

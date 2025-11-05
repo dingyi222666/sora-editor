@@ -345,6 +345,10 @@ public class TextMateAnalyzer extends AsyncIncrementalAnalyzeManager<MyState, Sp
     @Override
     public void destroy() {
         super.destroy();
+        if (bracketsProvider != null) {
+            bracketsProvider.destroy();
+            bracketsProvider = null;
+        }
         themeRegistry.removeListener(this);
     }
 

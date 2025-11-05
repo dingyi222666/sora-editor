@@ -1,7 +1,7 @@
 /*
  *    sora-editor - the awesome code editor for Android
  *    https://github.com/Rosemoe/sora-editor
- *    Copyright (C) 2020-2024  Rosemoe
+ *    Copyright (C) 2020-2025  Rosemoe
  *
  *     This library is free software; you can redistribute it and/or
  *     modify it under the terms of the GNU Lesser General Public
@@ -26,10 +26,8 @@ package io.github.rosemoe.sora.lang.brackets;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
-import java.util.List;
-
+import io.github.rosemoe.sora.lang.analysis.StyleReceiver;
 import io.github.rosemoe.sora.text.Content;
-import io.github.rosemoe.sora.text.TextRange;
 
 /**
  * Interface for providing brackets
@@ -39,15 +37,24 @@ import io.github.rosemoe.sora.text.TextRange;
 public interface BracketsProvider {
 
     /**
+     * Register the {@link StyleReceiver} that should receive bracket updates.
+     *
+     * @param receiver the receiver to notify, or {@code null} to detach the current one
+     */
+    void setReceiver(@Nullable StyleReceiver receiver);
+
+    /**
+     * Release any resources held by this provider and stop dispatching updates.
+     */
+    void destroy();
+
+    /**
      * Get left and right brackets position in text
      *
      * @param text  The text in editor
      * @param index Index of cursor in text
-     * @return Paired positions or null if not matched
      */
-    @Nullable
-    PairedBracket getPairedBracketAt(@NonNull Content text, int index);
+    void getPairedBracketAt(@NonNull Content text, int index);
 
-    @Nullable
-    List<PairedBracket> getPairedBracketsAtRange(@NonNull Content text, long leftPosition, long rightPosition);
+    void getPairedBracketsAtRange(@NonNull Content text, long leftPosition, long rightPosition);
 }

@@ -1,7 +1,9 @@
-/*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
- *--------------------------------------------------------------------------------------------*/
+/*******************************************************************************
+ * ---------------------------------------------------------------------------------------------
+ *  *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  *--------------------------------------------------------------------------------------------
+ ******************************************************************************/
 
 package io.github.rosemoe.sora.lang.brackets.tree
 
@@ -13,6 +15,7 @@ import io.github.rosemoe.sora.lang.brackets.tree.ast.ListAstNode
 import io.github.rosemoe.sora.lang.brackets.tree.ast.PairAstNode
 import io.github.rosemoe.sora.lang.brackets.tree.ast.TextAstNode
 import io.github.rosemoe.sora.lang.brackets.tree.tokenizer.OpeningBracketId
+import io.github.rosemoe.sora.lang.brackets.tree.tokenizer.TokenAllocator
 import io.github.rosemoe.sora.lang.brackets.tree.tokenizer.TokenKind
 import io.github.rosemoe.sora.lang.brackets.tree.tokenizer.Tokenizer
 
@@ -80,7 +83,7 @@ class Parser(
         openedBracketIds: SmallImmutableSet<OpeningBracketId>,
         level: Int
     ): BaseAstNode? {
-        val items = mutableListOf<BaseAstNode>()
+        val items = TokenAllocator.obtainNodeList()
 
         while (true) {
             var child = tryReadChildFromCache(openedBracketIds)
@@ -111,6 +114,7 @@ class Parser(
         } else {
             concat23TreesOfSameHeight(items, createImmutableLists)
         }
+        TokenAllocator.recycleNodeList(items)
         return result
     }
 
@@ -156,7 +160,9 @@ class Parser(
             }
 
             TokenKind.Text -> {
-                return token.astNode as TextAstNode
+                val node = token.astNode as TextAstNode
+                TokenAllocator.recycle(token)
+                return node
             }
 
             TokenKind.OpeningBracket -> {

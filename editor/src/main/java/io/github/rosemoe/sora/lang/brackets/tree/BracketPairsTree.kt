@@ -26,6 +26,7 @@ import io.github.rosemoe.sora.lang.styling.Spans
 import io.github.rosemoe.sora.text.CharPosition
 import io.github.rosemoe.sora.text.ContentReference
 import io.github.rosemoe.sora.text.TextRange
+import java.util.concurrent.locks.ReentrantReadWriteLock
 
 fun interface TreeContentSnapshotProvider {
     fun snapshot(): TreeContentSnapshot?
@@ -55,6 +56,9 @@ class BracketPairsTree(
 
     private var queuedTextEditsForInitialAstWithoutTokens = mutableListOf<TextEditInfo>()
     private var queuedTextEdits = mutableListOf<TextEditInfo>()
+    private val lock = ReentrantReadWriteLock()
+    private val readLock = lock.readLock()
+    private val writeLock = lock.writeLock()
 
     init {
         init()
@@ -62,16 +66,23 @@ class BracketPairsTree(
 
     internal fun init() {
         val snapshot = snapshotProvider.snapshot() ?: return
-        if (snapshot.spans == null) {
+        val (initialAst, astWithTokensResult) = if (snapshot.spans == null) {
             val tokenizer = FastTokenizer(snapshot.content, brackets)
-            initialAstWithoutTokens = parseDocument(tokenizer, emptyList(), null, true)
-            astWithTokens = initialAstWithoutTokens
+            val ast = parseDocument(tokenizer, emptyList(), null, true)
+            ast to ast
         } else {
-            initialAstWithoutTokens = null
-            astWithTokens = parseDocumentFromSnapshot(snapshot, emptyList(), null, false)
+            null to parseDocumentFromSnapshot(snapshot, emptyList(), null, false)
         }
-        queuedTextEditsForInitialAstWithoutTokens.clear()
-        queuedTextEdits.clear()
+
+        writeLock.lock()
+        try {
+            initialAstWithoutTokens = initialAst
+            astWithTokens = astWithTokensResult
+            queuedTextEditsForInitialAstWithoutTokens.clear()
+            queuedTextEdits.clear()
+        } finally {
+            writeLock.unlock()
+        }
     }
 
     fun handleDidChangeTokens(event: StyleUpdateRange) {
@@ -101,38 +112,76 @@ class BracketPairsTree(
 
     private fun handleEdits(edits: TextEditInfo, tokenChange: Boolean) {
         // Lazily queue the edits and only apply them when the tree is accessed.
-        val result = combineTextEditInfos(this.queuedTextEdits, listOf(edits))
-
-        queuedTextEdits = result.toMutableList()
-        if (initialAstWithoutTokens != null && !tokenChange) {
-            queuedTextEditsForInitialAstWithoutTokens =
-                combineTextEditInfos(queuedTextEditsForInitialAstWithoutTokens, listOf(edits))
-                    .toMutableList()
+        writeLock.lock()
+        try {
+            val result = combineTextEditInfos(this.queuedTextEdits, listOf(edits))
+            queuedTextEdits = result.toMutableList()
+            if (initialAstWithoutTokens != null && !tokenChange) {
+                queuedTextEditsForInitialAstWithoutTokens =
+                    combineTextEditInfos(
+                        queuedTextEditsForInitialAstWithoutTokens,
+                        listOf(edits)
+                    ).toMutableList()
+            }
+        } finally {
+            writeLock.unlock()
         }
     }
 
     internal fun flushQueue() {
-        if (this.queuedTextEdits.isNotEmpty()) {
-            val updated =
-                parseDocumentFromTextBuffer(this.queuedTextEdits, this.astWithTokens, false)
-            if (updated != null) {
-                this.astWithTokens = updated
-                this.queuedTextEdits = mutableListOf()
-            }
-        }
-        if (this.queuedTextEditsForInitialAstWithoutTokens.isNotEmpty()) {
-            if (this.initialAstWithoutTokens != null) {
-                val updatedInitial = this.parseDocumentFromTextBuffer(
-                    this.queuedTextEditsForInitialAstWithoutTokens,
-                    this.initialAstWithoutTokens,
-                    false
-                )
-                if (updatedInitial != null) {
-                    this.initialAstWithoutTokens = updatedInitial
-                    this.queuedTextEditsForInitialAstWithoutTokens = mutableListOf()
+        while (true) {
+            var edits: List<TextEditInfo> = emptyList()
+            var initialEdits: List<TextEditInfo> = emptyList()
+            var previousAst: BaseAstNode? = null
+            var previousInitialAst: BaseAstNode? = null
+
+            writeLock.lock()
+            try {
+                val hasQueuedEdits =
+                    queuedTextEdits.isNotEmpty() || queuedTextEditsForInitialAstWithoutTokens.isNotEmpty()
+                if (!hasQueuedEdits) {
+                    return
                 }
-            } else {
-                this.queuedTextEditsForInitialAstWithoutTokens = mutableListOf()
+                edits = queuedTextEdits
+                queuedTextEdits = mutableListOf()
+                previousAst = astWithTokens
+
+                initialEdits = queuedTextEditsForInitialAstWithoutTokens
+                queuedTextEditsForInitialAstWithoutTokens = mutableListOf()
+                previousInitialAst = initialAstWithoutTokens
+            } finally {
+                writeLock.unlock()
+            }
+
+            val updatedAst =
+                if (edits.isNotEmpty()) parseDocumentFromTextBuffer(edits, previousAst, false)
+                    ?: previousAst else previousAst
+            val updatedInitialAst =
+                if (previousInitialAst != null && initialEdits.isNotEmpty()) {
+                    parseDocumentFromTextBuffer(initialEdits, previousInitialAst, false)
+                        ?: previousInitialAst
+                } else previousInitialAst
+
+            writeLock.lock()
+            try {
+                if (edits.isNotEmpty()) {
+                    astWithTokens = updatedAst
+                }
+                if (previousInitialAst != null && initialEdits.isNotEmpty()) {
+                    initialAstWithoutTokens = updatedInitialAst
+                    if (initialAstWithoutTokens == null) {
+                        queuedTextEditsForInitialAstWithoutTokens.clear()
+                    }
+                }
+
+                val hasRemainingWork =
+                    queuedTextEdits.isNotEmpty() ||
+                            queuedTextEditsForInitialAstWithoutTokens.isNotEmpty()
+                if (!hasRemainingWork) {
+                    return
+                }
+            } finally {
+                writeLock.unlock()
             }
         }
     }
@@ -178,19 +227,24 @@ class BracketPairsTree(
         val startOffset = toLength(range.start.line, range.start.column)
         val endOffset = toLength(range.end.line, range.end.column)
         return CallbackIterable({ cb ->
-            val node = initialAstWithoutTokens ?: this.astWithTokens ?: return@CallbackIterable
-            collectBrackets(
-                node,
-                Length.ZERO,
-                node.length,
-                startOffset,
-                endOffset,
-                cb,
-                0,
-                0,
-                mutableMapOf(),
-                onlyColorizedBrackets
-            )
+            readLock.lock()
+            try {
+                val node = initialAstWithoutTokens ?: this.astWithTokens ?: return@CallbackIterable
+                collectBrackets(
+                    node,
+                    Length.ZERO,
+                    node.length,
+                    startOffset,
+                    endOffset,
+                    cb,
+                    0,
+                    0,
+                    mutableMapOf(),
+                    onlyColorizedBrackets
+                )
+            } finally {
+                readLock.unlock()
+            }
         })
     }
 
@@ -204,49 +258,64 @@ class BracketPairsTree(
         val endOffset = toLength(range.end.line, range.end.column)
 
         return CallbackIterable { cb ->
-            val node = initialAstWithoutTokens ?: this.astWithTokens ?: return@CallbackIterable
+            readLock.lock()
+            try {
+                val node = initialAstWithoutTokens ?: this.astWithTokens ?: return@CallbackIterable
 
-            val snapshot = snapshotProvider.snapshot()
-            val context = CollectBracketPairsContext(
-                cb,
-                includeMinIndentation,
-                if (includeMinIndentation) snapshot?.content else null
-            )
-            collectBracketPairs(
-                node,
-                Length.ZERO,
-                node.length,
-                startOffset,
-                endOffset,
-                context,
-                0,
-                mutableMapOf()
-            )
+                val snapshot = snapshotProvider.snapshot()
+                val context = CollectBracketPairsContext(
+                    cb,
+                    includeMinIndentation,
+                    if (includeMinIndentation) snapshot?.content else null
+                )
+                collectBracketPairs(
+                    node,
+                    Length.ZERO,
+                    node.length,
+                    startOffset,
+                    endOffset,
+                    context,
+                    0,
+                    mutableMapOf()
+                )
+            } finally {
+                readLock.unlock()
+            }
         }
     }
 
     fun getFirstBracketAfter(position: CharPosition): FoundBracket? {
         flushQueue()
 
-        val node = this.initialAstWithoutTokens ?: this.astWithTokens ?: return null
-        return getFirstBracketAfter(
-            node,
-            Length.ZERO,
-            node.length,
-            toLength(position.line, position.column)
-        )
+        readLock.lock()
+        return try {
+            val node = this.initialAstWithoutTokens ?: this.astWithTokens ?: return null
+            getFirstBracketAfter(
+                node,
+                Length.ZERO,
+                node.length,
+                toLength(position.line, position.column)
+            )
+        } finally {
+            readLock.unlock()
+        }
     }
 
     fun getFirstBracketBefore(position: CharPosition): FoundBracket? {
         flushQueue()
 
-        val node = this.initialAstWithoutTokens ?: this.astWithTokens ?: return null
-        return getFirstBracketBefore(
-            node,
-            Length.ZERO,
-            node.length,
-            toLength(position.line, position.column)
-        )
+        readLock.lock()
+        return try {
+            val node = this.initialAstWithoutTokens ?: this.astWithTokens ?: return null
+            getFirstBracketBefore(
+                node,
+                Length.ZERO,
+                node.length,
+                toLength(position.line, position.column)
+            )
+        } finally {
+            readLock.unlock()
+        }
     }
 }
 

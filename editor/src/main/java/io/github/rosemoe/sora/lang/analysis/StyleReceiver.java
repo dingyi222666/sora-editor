@@ -26,7 +26,10 @@ package io.github.rosemoe.sora.lang.analysis;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import java.util.List;
+
 import io.github.rosemoe.sora.lang.brackets.BracketsProvider;
+import io.github.rosemoe.sora.lang.brackets.PairedBracket;
 import io.github.rosemoe.sora.lang.diagnostic.DiagnosticsContainer;
 import io.github.rosemoe.sora.lang.styling.Styles;
 
@@ -85,5 +88,17 @@ public interface StyleReceiver {
      * Set new provider for brackets highlighting
      */
     void updateBracketProvider(@NonNull AnalyzeManager sourceManager, @Nullable BracketsProvider provider);
+
+    /**
+     * Update the currently matched bracket pair.
+     */
+    default void updateMatchedBracketPair(@NonNull BracketsProvider provider, @Nullable PairedBracket pair) {
+    }
+
+    /**
+     * Update the set of matched bracket pairs within a range.
+     */
+    default void updateBracketPairsInRange(@NonNull BracketsProvider provider, @Nullable List<PairedBracket> pairs) {
+    }
 
 }

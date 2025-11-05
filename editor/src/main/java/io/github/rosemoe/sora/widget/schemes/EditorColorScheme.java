@@ -168,6 +168,14 @@ public class EditorColorScheme {
     public static final int TEXT_ACTION_WINDOW_ICON_COLOR = 66;
 
     /**
+     * Rainbow bracket highlighting colors
+     */
+    public static final int BRACKET_HIGHLIGHTING_FOREGROUND_1 = 73;
+    public static final int BRACKET_HIGHLIGHTING_FOREGROUND_2 = 74;
+    public static final int BRACKET_HIGHLIGHTING_FOREGROUND_3 = 75;
+    public static final int BRACKET_HIGHLIGHTING_FOREGROUND_4 = 76;
+
+    /**
      * Min pre-defined color id
      */
     protected static final int START_COLOR_ID = 1;
@@ -175,7 +183,7 @@ public class EditorColorScheme {
     /**
      * Max pre-defined color id
      */
-    protected static final int END_COLOR_ID = 72;
+    protected static final int END_COLOR_ID = 76;
 
 
     /**
@@ -432,6 +440,18 @@ public class EditorColorScheme {
                 break;
             case DIAGNOSTIC_TOOLTIP_ACTION:
                 color = 0xff42A5F5;
+                break;
+            case BRACKET_HIGHLIGHTING_FOREGROUND_1:
+                color = 0xffFFD700; // Gold
+                break;
+            case BRACKET_HIGHLIGHTING_FOREGROUND_2:
+                color = 0xffDA70D6; // Orchid
+                break;
+            case BRACKET_HIGHLIGHTING_FOREGROUND_3:
+                color = 0xff179FFF; // Light Blue
+                break;
+            case BRACKET_HIGHLIGHTING_FOREGROUND_4:
+                color = 0xffFF6347; // Tomato
         }
         setColor(type, color);
     }

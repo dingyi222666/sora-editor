@@ -26,6 +26,7 @@ package io.github.rosemoe.sora.lang.brackets
 
 import androidx.annotation.WorkerThread
 import io.github.rosemoe.sora.lang.analysis.StyleUpdateRange
+import io.github.rosemoe.sora.lang.brackets.AsyncBracketsCollector
 import io.github.rosemoe.sora.lang.brackets.tree.BracketPairsTree
 import io.github.rosemoe.sora.lang.brackets.tree.TreeContentSnapshotProvider
 import io.github.rosemoe.sora.lang.brackets.tree.tokenizer.BracketTokens
@@ -46,7 +47,7 @@ import kotlin.math.min
 class TreeBaseBracketPairProvider(
     snapshotProvider: TreeContentSnapshotProvider,
     bracketTokens: BracketTokens
-) : BracketsProvider {
+) : AsyncBracketsCollector("TreeBrackets") {
 
     private val tree = BracketPairsTree(snapshotProvider, bracketTokens)
 
@@ -67,25 +68,30 @@ class TreeBaseBracketPairProvider(
         tree.init()
     }
 
-    override fun getPairedBracketAt(text: Content, index: Int): PairedBracket? {
+    @WorkerThread
+    override fun computeMatchedBracket(
+        text: Content,
+        index: Int,
+        cancellationToken: CancellationToken
+    ): PairedBracket? {
         if (index < 0 || index > text.length) {
             return null
         }
 
-        val indexer = text.getIndexer()
-        val result = findPairAt(indexer, text, index)?.let { convertToPairedBracket(indexer, it) }
-            ?: findPairAt(indexer, text, index)?.let { convertToPairedBracket(indexer, it) }
-
-        println("11 $result")
-
-        return result
+        val indexer = text.indexer
+        cancellationToken.throwIfCancelled()
+        val info = findPairAt(indexer, text, index, cancellationToken) ?: return null
+        cancellationToken.throwIfCancelled()
+        return convertToPairedBracket(indexer, info)
     }
 
-    override fun getPairedBracketsAtRange(
+    @WorkerThread
+    override fun computeBracketPairsInRange(
         text: Content,
         leftPosition: Long,
-        rightPosition: Long
-    ): List<PairedBracket?>? {
+        rightPosition: Long,
+        cancellationToken: CancellationToken
+    ): List<PairedBracket>? {
         val startLine = IntPair.getFirst(leftPosition)
         val startColumn = IntPair.getSecond(leftPosition)
         val endLine = IntPair.getFirst(rightPosition)
@@ -101,23 +107,28 @@ class TreeBaseBracketPairProvider(
             start to end
         }
         val range = TextRange(normalizedStart, normalizedEnd)
-        val indexer = text.getIndexer()
+        val indexer = text.indexer
 
         val pairs = mutableListOf<PairedBracket>()
 
         tree.getBracketPairsInRange(range, includeMinIndentation = false)
             .iterate { info ->
+                if (cancellationToken.isCancelled) {
+                    return@iterate false
+                }
                 convertToPairedBracket(indexer, info)?.let { pairs.add(it) }
                 true
             }
 
+        cancellationToken.throwIfCancelled()
         return if (pairs.isEmpty()) null else pairs
     }
 
     private fun findPairAt(
         indexer: Indexer,
         text: Content,
-        index: Int
+        index: Int,
+        cancellationToken: CancellationToken
     ): BracketPairWithMinIndentationInfo? {
         if (index < 0 || index >= text.length) {
             return null
@@ -129,8 +140,11 @@ class TreeBaseBracketPairProvider(
         var matched: BracketPairWithMinIndentationInfo? = null
         tree.getBracketPairsInRange(searchRange, includeMinIndentation = false)
             .iterate { info ->
-                println("$info $position")
-                if (info.openingBracketRange.isInPosition(position) ||
+                if (cancellationToken.isCancelled) {
+                    return@iterate false
+                }
+                if (
+                    info.openingBracketRange.isInPosition(position) ||
                     info.closingBracketRange?.isInPosition(position) == true
                 ) {
                     matched = info
@@ -146,25 +160,21 @@ class TreeBaseBracketPairProvider(
         info: BracketPairWithMinIndentationInfo
     ): PairedBracket? {
         val closingRange = info.closingBracketRange ?: return null
+        val closingInfo = info.closingBracketInfo ?: return null
         val openingStartIndex = indexer.getCharIndex(
             info.openingBracketRange.start.line,
             info.openingBracketRange.start.column
         )
-        val openingEndIndex = indexer.getCharIndex(
-            info.openingBracketRange.end.line,
-            info.openingBracketRange.end.column
-        )
+
+        println(closingRange.start)
         val closingStartIndex = indexer.getCharIndex(
             closingRange.start.line,
             closingRange.start.column
         )
-        val closingEndIndex = indexer.getCharIndex(
-            closingRange.end.line,
-            closingRange.end.column
-        )
 
-        val openingLength = max(0, openingEndIndex - openingStartIndex)
-        val closingLength = max(0, closingEndIndex - closingStartIndex)
+        val openingLength = max(0, info.openingBracketInfo.bracketText.length)
+        val closingLength = max(0, closingInfo.bracketText.length)
+
         if (openingLength <= 0 || closingLength <= 0) {
             return null
         }
@@ -188,7 +198,6 @@ class TreeBaseBracketPairProvider(
 }
 
 
-
 internal fun TextRange.isInPosition(position: CharPosition): Boolean {
     val start = start
     val end = end
@@ -197,7 +206,7 @@ internal fun TextRange.isInPosition(position: CharPosition): Boolean {
     if (position.line < start.line) {
         return false
     }
-    if (position.line == start.line && position.column < start.column ) {
+    if (position.line == start.line && position.column < start.column) {
         return false
     }
 

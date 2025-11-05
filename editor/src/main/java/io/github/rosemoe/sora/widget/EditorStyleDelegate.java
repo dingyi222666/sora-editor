@@ -31,6 +31,7 @@ import androidx.annotation.Nullable;
 import java.lang.ref.WeakReference;
 import java.util.List;
 
+import io.github.rosemoe.sora.event.ScrollEvent;
 import io.github.rosemoe.sora.event.SelectionChangeEvent;
 import io.github.rosemoe.sora.lang.analysis.AnalyzeManager;
 import io.github.rosemoe.sora.lang.analysis.StyleReceiver;
@@ -39,18 +40,24 @@ import io.github.rosemoe.sora.lang.brackets.BracketsProvider;
 import io.github.rosemoe.sora.lang.brackets.PairedBracket;
 import io.github.rosemoe.sora.lang.diagnostic.DiagnosticsContainer;
 import io.github.rosemoe.sora.lang.styling.Styles;
+import io.github.rosemoe.sora.util.IntPair;
 
 public class EditorStyleDelegate implements StyleReceiver {
 
     private final WeakReference<CodeEditor> editorRef;
-    private PairedBracket foundPair;
-    private List<PairedBracket> pairedBracketsInRange;
+    private PairedBracket matchedBracketPair;
+    private List<PairedBracket> matchedBracketsInRange;
     private BracketsProvider bracketsProvider;
 
     EditorStyleDelegate(@NonNull CodeEditor editor) {
         editorRef = new WeakReference<>(editor);
         editor.subscribeEvent(SelectionChangeEvent.class, (event, __) -> {
             if (!event.isSelected()) {
+                postUpdateBracketPair();
+            }
+        });
+        editor.subscribeEvent(ScrollEvent.class, (event, __) -> {
+            if (!editor.isSelected()) {
                 postUpdateBracketPair();
             }
         });
@@ -66,20 +73,54 @@ public class EditorStyleDelegate implements StyleReceiver {
         runOnUiThread(() -> {
             final var provider = bracketsProvider;
             final var editor = editorRef.get();
-            if (provider != null && editor != null && !editor.getCursor().isSelected() && editor.isHighlightBracketPair()) {
-                foundPair = provider.getPairedBracketAt(editor.getText(), editor.getCursor().getLeft());
-                editor.invalidate();
+            if (provider == null || editor == null) {
+                setMatchedBracketPair(null);
+                setMatchedBracketPairsInRange(null);
+                return;
+            }
+            if (editor.getCursor().isSelected() || !editor.isHighlightBracketPair()) {
+                setMatchedBracketPair(null);
+                setMatchedBracketPairsInRange(null);
+                return;
+            }
+            var cursor = editor.getCursor();
+            provider.getPairedBracketAt(editor.getText(), cursor.getLeft());
+            var firstVisible = editor.getFirstVisibleLine();
+            var lastVisible = editor.getLastVisibleLine();
+            if (firstVisible >= 0 && lastVisible >= firstVisible) {
+                var text = editor.getText();
+                var lineCount = Math.max(0, text.getLineCount() - 1);
+                var clampedLast = Math.min(lastVisible, lineCount);
+                var clampedFirst = Math.min(firstVisible, clampedLast);
+                var rightColumn = text.getColumnCount(clampedLast);
+                provider.getPairedBracketsAtRange(
+                        text,
+                        IntPair.pack(clampedFirst, 0),
+                        IntPair.pack(clampedLast, rightColumn)
+                );
+            } else {
+                setMatchedBracketPairsInRange(null);
             }
         });
     }
 
+
     @Nullable
-    public PairedBracket getFoundBracketPair() {
-        return foundPair;
+    public PairedBracket getMatchedBracketPair() {
+        return matchedBracketPair;
+    }
+
+    @Nullable
+    public List<PairedBracket> getBracketsInRange() {
+        return matchedBracketsInRange;
     }
 
     void reset() {
-        foundPair = null;
+        setMatchedBracketPair(null);
+        setMatchedBracketPairsInRange(null);
+        if (bracketsProvider != null) {
+            bracketsProvider.setReceiver(null);
+        }
         bracketsProvider = null;
     }
 
@@ -125,7 +166,13 @@ public class EditorStyleDelegate implements StyleReceiver {
     public void updateBracketProvider(@NonNull AnalyzeManager sourceManager, @Nullable BracketsProvider provider) {
         var editor = editorRef.get();
         if (editor != null && sourceManager == editor.getEditorLanguage().getAnalyzeManager() && bracketsProvider != provider) {
+            if (bracketsProvider != null) {
+                bracketsProvider.setReceiver(null);
+            }
             this.bracketsProvider = provider;
+            if (provider != null) {
+                provider.setReceiver(this);
+            }
             postUpdateBracketPair();
         }
     }
@@ -138,7 +185,48 @@ public class EditorStyleDelegate implements StyleReceiver {
         }
     }
 
-    public void clearFoundBracketPair() {
-        this.foundPair = null;
+    public void clearMatchedBracketPair() {
+        setMatchedBracketPair(null);
+    }
+
+    public void setMatchedBracketPair(@Nullable PairedBracket pair) {
+        runOnUiThread(() -> {
+            matchedBracketPair = pair;
+            invalidateEditor();
+        });
+    }
+
+    private void setMatchedBracketPairsInRange(@Nullable List<PairedBracket> pairs) {
+        runOnUiThread(() -> {
+            matchedBracketsInRange = pairs;
+            invalidateEditor();
+        });
+    }
+
+    private void invalidateEditor() {
+        var editor = editorRef.get();
+        if (editor != null) {
+            editor.invalidate();
+        }
+    }
+
+    @Override
+    public void updateMatchedBracketPair(@NonNull BracketsProvider provider, @Nullable PairedBracket pair) {
+        if (provider == bracketsProvider && shouldHighlight()) {
+            setMatchedBracketPair(pair);
+        }
+    }
+
+    @Override
+    public void updateBracketPairsInRange(@NonNull BracketsProvider provider, @Nullable List<PairedBracket> pairs) {
+        if (provider == bracketsProvider && shouldHighlight()) {
+            System.out.println(pairs);
+            setMatchedBracketPairsInRange(pairs);
+        }
+    }
+
+    private boolean shouldHighlight() {
+        var editor = editorRef.get();
+        return editor != null && editor.isHighlightBracketPair() && !editor.getCursor().isSelected();
     }
 }
