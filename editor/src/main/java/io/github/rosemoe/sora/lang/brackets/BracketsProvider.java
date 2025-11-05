@@ -32,7 +32,7 @@ import io.github.rosemoe.sora.text.Content;
 import io.github.rosemoe.sora.text.TextRange;
 
 /**
- * Interface for providing paired brackets
+ * Interface for providing brackets
  *
  * @author Rosemoe
  */
@@ -47,4 +47,7 @@ public interface BracketsProvider {
      */
     @Nullable
     PairedBracket getPairedBracketAt(@NonNull Content text, int index);
+
+    @Nullable
+    List<PairedBracket> getPairedBracketsAtRange(@NonNull Content text, long leftPosition, long rightPosition);
 }

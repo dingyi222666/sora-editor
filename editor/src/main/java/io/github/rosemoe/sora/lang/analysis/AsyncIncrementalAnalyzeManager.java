@@ -156,14 +156,14 @@ public abstract class AsyncIncrementalAnalyzeManager<S, T> extends BaseAnalyzeMa
         super.destroy();
     }
 
-    private void sendNewStyles(Styles styles) {
+    protected void sendNewStyles(Styles styles) {
         final var r = getReceiver();
         if (r != null) {
             r.setStyles(this, styles);
         }
     }
 
-    private void sendUpdate(Styles styles, int startLine, int endLine) {
+    protected void sendUpdate(Styles styles, int startLine, int endLine) {
         final var r = getReceiver();
         if (r != null) {
             r.updateStyles(this, styles, new SequenceUpdateRange(startLine, endLine));

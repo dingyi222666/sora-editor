@@ -64,4 +64,8 @@ class TextAstNode(length: Length) : BaseAstNode(length) {
 
         return result
     }
+
+    override fun toString(): String {
+        return "TextAstNode(length=$length)"
+    }
 }

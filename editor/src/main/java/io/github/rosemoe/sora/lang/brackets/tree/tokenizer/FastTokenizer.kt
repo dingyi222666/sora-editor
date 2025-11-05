@@ -11,7 +11,7 @@ import io.github.rosemoe.sora.lang.brackets.tree.ast.TextAstNode
 import io.github.rosemoe.sora.lang.brackets.tree.toLength
 import io.github.rosemoe.sora.text.ContentReference
 
-class FastTokenizer(
+internal class FastTokenizer(
     private val text: ContentReference,
     brackets: BracketTokens
 ) : Tokenizer {

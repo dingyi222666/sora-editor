@@ -26,6 +26,9 @@ package io.github.rosemoe.sora.lang.brackets;
 import android.util.SparseIntArray;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+
+import java.util.List;
 
 import io.github.rosemoe.sora.text.Content;
 
@@ -78,5 +81,11 @@ public class SimpleBracketsCollector implements BracketsProvider {
             res = getForIndex(index);
         }
         return res;
+    }
+
+    @Nullable
+    @Override
+    public List<PairedBracket> getPairedBracketsAtRange(@NonNull Content text, long leftPosition, long rightPosition) {
+        return null;
     }
 }

@@ -7,7 +7,6 @@
 
 package io.github.rosemoe.sora.lang.brackets.tree
 
-import io.github.rosemoe.sora.event.ContentChangeEvent
 import io.github.rosemoe.sora.lang.analysis.StyleUpdateRange
 import io.github.rosemoe.sora.lang.brackets.BracketInfo
 import io.github.rosemoe.sora.lang.brackets.BracketPairWithMinIndentationInfo
@@ -23,14 +22,22 @@ import io.github.rosemoe.sora.lang.brackets.tree.tokenizer.BracketTokens
 import io.github.rosemoe.sora.lang.brackets.tree.tokenizer.FastTokenizer
 import io.github.rosemoe.sora.lang.brackets.tree.tokenizer.TextBufferTokenizer
 import io.github.rosemoe.sora.lang.brackets.tree.utils.CallbackIterable
+import io.github.rosemoe.sora.lang.styling.Spans
 import io.github.rosemoe.sora.text.CharPosition
 import io.github.rosemoe.sora.text.ContentReference
 import io.github.rosemoe.sora.text.TextRange
-import io.github.rosemoe.sora.widget.CodeEditor
-import java.lang.ref.WeakReference
+
+fun interface TreeContentSnapshotProvider {
+    fun snapshot(): TreeContentSnapshot?
+}
+
+data class TreeContentSnapshot(
+    val content: ContentReference,
+    val spans: Spans?
+)
 
 class BracketPairsTree(
-    private val editor: WeakReference<CodeEditor>,
+    private val snapshotProvider: TreeContentSnapshotProvider,
     private val brackets: BracketTokens
 ) {
     /*
@@ -42,8 +49,8 @@ class BracketPairsTree(
 		when tokenization completes.
 		Since the text can be edited while background tokenization is in progress, we need to update both trees.
 	*/
-    private var initialAstWithoutTokens: BaseAstNode? = null
-    private var astWithTokens: BaseAstNode? = null
+    internal var initialAstWithoutTokens: BaseAstNode? = null
+    internal var astWithTokens: BaseAstNode? = null
 
 
     private var queuedTextEditsForInitialAstWithoutTokens = mutableListOf<TextEditInfo>()
@@ -53,24 +60,18 @@ class BracketPairsTree(
         init()
     }
 
-    private fun init() {
-        val editorValue = editor.get() ?: return
-        if (editorValue.styles == null) {
-
-            val tokenizer = FastTokenizer(ContentReference(editorValue.text), brackets)
+    internal fun init() {
+        val snapshot = snapshotProvider.snapshot() ?: return
+        if (snapshot.spans == null) {
+            val tokenizer = FastTokenizer(snapshot.content, brackets)
             initialAstWithoutTokens = parseDocument(tokenizer, emptyList(), null, true)
             astWithTokens = initialAstWithoutTokens
-        } else if (editorValue.styles != null) {
-            // Skip the initial ast, as there is no flickering.
-            // Directly create the tree with token information.
-            initialAstWithoutTokens = null
-            astWithTokens = parseDocumentFromTextBuffer(emptyList(), null, false)
         } else {
-            // We missed some token changes already, so we cannot use the fast tokenizer + delta increments
-            initialAstWithoutTokens =
-                parseDocumentFromTextBuffer(emptyList(), null, true)
-            astWithTokens = initialAstWithoutTokens
+            initialAstWithoutTokens = null
+            astWithTokens = parseDocumentFromSnapshot(snapshot, emptyList(), null, false)
         }
+        queuedTextEditsForInitialAstWithoutTokens.clear()
+        queuedTextEdits.clear()
     }
 
     fun handleDidChangeTokens(event: StyleUpdateRange) {
@@ -88,11 +89,12 @@ class BracketPairsTree(
         }*/
     }
 
-    fun handleContentChanged(change: ContentChangeEvent) {
+
+    fun handleContentChanged(changeStart: CharPosition, changeEnd: CharPosition) {
         val edit = TextEditInfo(
-            toLength(change.changeStart.line, change.changeStart.column),
-            toLength(change.changeStart.line, change.changeEnd.column),
-            toLength(change.changeEnd.line - change.changeStart.line + 1, 0)
+            toLength(changeStart.line, changeStart.column),
+            toLength(changeStart.line, changeEnd.column),
+            toLength(changeEnd.line - changeStart.line + 1, 0)
         )
         handleEdits(edit, false)
     }
@@ -109,58 +111,74 @@ class BracketPairsTree(
         }
     }
 
-    private fun flushQueue() {
+    internal fun flushQueue() {
         if (this.queuedTextEdits.isNotEmpty()) {
-            this.astWithTokens =
+            val updated =
                 parseDocumentFromTextBuffer(this.queuedTextEdits, this.astWithTokens, false)
-            this.queuedTextEdits = mutableListOf()
+            if (updated != null) {
+                this.astWithTokens = updated
+                this.queuedTextEdits = mutableListOf()
+            }
         }
         if (this.queuedTextEditsForInitialAstWithoutTokens.isNotEmpty()) {
             if (this.initialAstWithoutTokens != null) {
-                this.initialAstWithoutTokens = this.parseDocumentFromTextBuffer(
+                val updatedInitial = this.parseDocumentFromTextBuffer(
                     this.queuedTextEditsForInitialAstWithoutTokens,
                     this.initialAstWithoutTokens,
                     false
                 )
+                if (updatedInitial != null) {
+                    this.initialAstWithoutTokens = updatedInitial
+                    this.queuedTextEditsForInitialAstWithoutTokens = mutableListOf()
+                }
+            } else {
+                this.queuedTextEditsForInitialAstWithoutTokens = mutableListOf()
             }
-            this.queuedTextEditsForInitialAstWithoutTokens = mutableListOf()
         }
     }
 
     /**
      * @pure (only if isPure = true)
      */
+    private fun parseDocumentFromSnapshot(
+        snapshot: TreeContentSnapshot,
+        edits: List<TextEditInfo>,
+        previousAst: BaseAstNode?,
+        immutable: Boolean
+    ): BaseAstNode {
+        // Is much faster if `isPure = false`.
+        val isPure = false
+        val previousAstClone = if (isPure) previousAst?.deepClone() else previousAst
+        val tokenizer = snapshot.spans?.let {
+            TextBufferTokenizer(
+                snapshot.content,
+                it,
+                brackets
+            )
+        } ?: FastTokenizer(snapshot.content, brackets)
+
+        return parseDocument(tokenizer, edits, previousAstClone, immutable)
+    }
+
     private fun parseDocumentFromTextBuffer(
         edits: List<TextEditInfo>,
         previousAst: BaseAstNode?,
         immutable: Boolean
     ): BaseAstNode? {
-        // Is much faster if `isPure = false`.
-        val isPure = false
-        val previousAstClone = if (isPure) previousAst?.deepClone() else previousAst
-        val editor = editor.get() ?: return null
-        val spans = editor.styles?.spans
-        val tokenizer = if (spans != null) TextBufferTokenizer(
-            ContentReference(editor.text),
-            spans,
-            brackets
-        ) else
-            FastTokenizer(ContentReference(editor.text), brackets)
-
-        val result = parseDocument(tokenizer, edits, previousAstClone, immutable)
-        return result
+        val snapshot = snapshotProvider.snapshot() ?: return null
+        return parseDocumentFromSnapshot(snapshot, edits, previousAst, immutable)
     }
 
     fun getBracketsInRange(
         range: TextRange,
         onlyColorizedBrackets: Boolean
     ): CallbackIterable<BracketInfo> {
-        this.flushQueue()
+        flushQueue()
 
         val startOffset = toLength(range.start.line, range.start.column)
         val endOffset = toLength(range.end.line, range.end.column)
-        return CallbackIterable { cb ->
-            val node = initialAstWithoutTokens ?: this.astWithTokens!!
+        return CallbackIterable({ cb ->
+            val node = initialAstWithoutTokens ?: this.astWithTokens ?: return@CallbackIterable
             collectBrackets(
                 node,
                 Length.ZERO,
@@ -173,26 +191,26 @@ class BracketPairsTree(
                 mutableMapOf(),
                 onlyColorizedBrackets
             )
-        }
+        })
     }
 
     fun getBracketPairsInRange(
         range: TextRange,
         includeMinIndentation: Boolean
     ): CallbackIterable<BracketPairWithMinIndentationInfo> {
-        this.flushQueue()
+        flushQueue()
 
         val startOffset = toLength(range.start.line, range.start.column)
         val endOffset = toLength(range.end.line, range.end.column)
 
-        val editor = requireNotNull(editor.get())
-
         return CallbackIterable { cb ->
-            val node = initialAstWithoutTokens ?: this.astWithTokens!!
+            val node = initialAstWithoutTokens ?: this.astWithTokens ?: return@CallbackIterable
+
+            val snapshot = snapshotProvider.snapshot()
             val context = CollectBracketPairsContext(
                 cb,
                 includeMinIndentation,
-                ContentReference(editor.text)
+                if (includeMinIndentation) snapshot?.content else null
             )
             collectBracketPairs(
                 node,
@@ -202,7 +220,7 @@ class BracketPairsTree(
                 endOffset,
                 context,
                 0,
-                mutableMapOf(),
+                mutableMapOf()
             )
         }
     }
@@ -502,7 +520,7 @@ private fun collectBrackets(
 private class CollectBracketPairsContext(
     val push: (BracketPairWithMinIndentationInfo) -> Boolean,
     val includeMinIndentation: Boolean,
-    val textModel: ContentReference
+    val textModel: ContentReference?
 )
 
 /**
@@ -543,10 +561,13 @@ private fun collectBracketPairs(
         val openingBracketEnd = nodeOffsetStart + pairNode.openingBracket.length
         var minIndentation = -1
         if (context.includeMinIndentation) {
-            minIndentation = pairNode.computeMinIndentation(
-                nodeOffsetStart,
-                context.textModel
-            )
+            val textModel = context.textModel
+            if (textModel != null) {
+                minIndentation = pairNode.computeMinIndentation(
+                    nodeOffsetStart,
+                    textModel
+                )
+            }
         }
 
         shouldContinue = context.push(
@@ -565,16 +586,15 @@ private fun collectBracketPairs(
             )
         )
 
-        var currentOffsetStart = openingBracketEnd
         if (shouldContinue && pairNode.child != null) {
             val child = pairNode.child
-            val currentOffsetEnd = currentOffsetStart + child.length
-            if (currentOffsetStart.value <= endOffset.value &&
+            val currentOffsetEnd = openingBracketEnd + child.length
+            if (openingBracketEnd.value <= endOffset.value &&
                 currentOffsetEnd.value >= startOffset.value
             ) {
                 shouldContinue = collectBracketPairs(
                     child,
-                    currentOffsetStart,
+                    openingBracketEnd,
                     currentOffsetEnd,
                     startOffset,
                     endOffset,

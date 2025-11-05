@@ -61,6 +61,7 @@ class BracketTokens private constructor(
         get() = map.isEmpty()
 
     companion object {
+        @JvmStatic
         fun createFromLanguage(
             configuration: BracketsConfiguration,
         ): BracketTokens {

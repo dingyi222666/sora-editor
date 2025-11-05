@@ -74,4 +74,18 @@ open class ArrayListAstNode(
     override fun toMutable(): ListAstNode {
         return this
     }
+
+    override fun toString(): String {
+        return buildString {
+            append("ArrayListAstNode(")
+            append("length=$length, ")
+            append("listHeight=$listHeight, ")
+            append("children=[")
+            _children.forEachIndexed { index, child ->
+                if (index > 0) append(", ")
+                append(child)
+            }
+            append("])")
+        }
+    }
 }

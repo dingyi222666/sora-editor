@@ -38,33 +38,44 @@ import org.eclipse.tm4e.core.internal.oniguruma.OnigString;
 import org.eclipse.tm4e.core.internal.theme.FontStyle;
 import org.eclipse.tm4e.core.internal.theme.Theme;
 import org.eclipse.tm4e.languageconfiguration.internal.model.LanguageConfiguration;
+import org.jetbrains.annotations.Nullable;
 
 import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import io.github.rosemoe.sora.lang.analysis.AsyncIncrementalAnalyzeManager;
-import io.github.rosemoe.sora.lang.brackets.BracketsProvider;
-import io.github.rosemoe.sora.lang.brackets.OnlineBracketsMatcher;
+import io.github.rosemoe.sora.lang.analysis.SequenceUpdateRange;
+import io.github.rosemoe.sora.lang.brackets.BracketsConfiguration;
+import io.github.rosemoe.sora.lang.brackets.RawBracketsConfiguration;
+import io.github.rosemoe.sora.lang.brackets.TreeBaseBracketPairProvider;
+import io.github.rosemoe.sora.lang.brackets.tree.TreeContentSnapshot;
+import io.github.rosemoe.sora.lang.brackets.tree.TreeContentSnapshotProvider;
+import io.github.rosemoe.sora.lang.brackets.tree.tokenizer.BracketTokens;
 import io.github.rosemoe.sora.lang.completion.IdentifierAutoComplete;
 import io.github.rosemoe.sora.lang.styling.CodeBlock;
 import io.github.rosemoe.sora.lang.styling.Span;
 import io.github.rosemoe.sora.lang.styling.SpanFactory;
+import io.github.rosemoe.sora.lang.styling.Spans;
+import io.github.rosemoe.sora.lang.styling.Styles;
 import io.github.rosemoe.sora.lang.styling.TextStyle;
 import io.github.rosemoe.sora.langs.textmate.folding.FoldingHelper;
 import io.github.rosemoe.sora.langs.textmate.folding.IndentRange;
 import io.github.rosemoe.sora.langs.textmate.registry.ThemeRegistry;
 import io.github.rosemoe.sora.langs.textmate.registry.model.ThemeModel;
 import io.github.rosemoe.sora.langs.textmate.utils.StringUtils;
+import io.github.rosemoe.sora.text.CharPosition;
 import io.github.rosemoe.sora.text.Content;
 import io.github.rosemoe.sora.text.ContentLine;
 import io.github.rosemoe.sora.text.ContentReference;
 import io.github.rosemoe.sora.util.ArrayList;
 import io.github.rosemoe.sora.util.MyCharacter;
 import io.github.rosemoe.sora.widget.schemes.EditorColorScheme;
+import kotlin.Pair;
 
-public class TextMateAnalyzer extends AsyncIncrementalAnalyzeManager<MyState, Span> implements FoldingHelper, ThemeRegistry.ThemeChangeListener {
+public class TextMateAnalyzer extends AsyncIncrementalAnalyzeManager<MyState, Span> implements FoldingHelper, ThemeRegistry.ThemeChangeListener, TreeContentSnapshotProvider {
 
     private final IGrammar grammar;
     private Theme theme;
@@ -77,9 +88,11 @@ public class TextMateAnalyzer extends AsyncIncrementalAnalyzeManager<MyState, Sp
 
     private OnigRegExp cachedRegExp;
     private boolean foldingOffside;
-    private BracketsProvider bracketsProvider;
+    private TreeBaseBracketPairProvider bracketsProvider;
     final IdentifierAutoComplete.SyncIdentifiers syncIdentifiers = new IdentifierAutoComplete.SyncIdentifiers();
 
+    @Nullable
+    private Styles styles = null;
 
     public TextMateAnalyzer(TextMateLanguage language, IGrammar grammar, LanguageConfiguration languageConfiguration,/* GrammarRegistry grammarRegistry,*/ ThemeRegistry themeRegistry) {
         this.language = language;
@@ -100,23 +113,18 @@ public class TextMateAnalyzer extends AsyncIncrementalAnalyzeManager<MyState, Sp
             configuration = languageConfiguration;
             var pairs = languageConfiguration.getBrackets();
             if (pairs != null && !pairs.isEmpty()) {
-                int size = pairs.size();
-                for (var pair : pairs) {
-                    if (pair.open.length() != 1 || pair.close.length() != 1) {
-                        size--;
-                    }
-                }
-                var pairArr = new char[size * 2];
-                int i = 0;
-                for (var pair : pairs) {
-                    if (pair.open.length() != 1 || pair.close.length() != 1) {
-                        continue;
-                    }
-                    pairArr[i * 2] = pair.open.charAt(0);
-                    pairArr[i * 2 + 1] = pair.close.charAt(0);
-                    i++;
-                }
-                bracketsProvider = new OnlineBracketsMatcher(pairArr, 100000);
+                var brackets = pairs.stream().map(pair -> new Pair<>(pair.open, pair.close))
+                        .collect(Collectors.toUnmodifiableList());
+
+                var rawConfiguration = new RawBracketsConfiguration(
+                        brackets,
+                        Collections.emptyList()
+                );
+                bracketsProvider = new TreeBaseBracketPairProvider(this, BracketTokens.createFromLanguage(
+                        new BracketsConfiguration(
+                                rawConfiguration
+                        )
+                ));
             }
         } else {
             configuration = null;
@@ -166,6 +174,7 @@ public class TextMateAnalyzer extends AsyncIncrementalAnalyzeManager<MyState, Sp
         var list = new ArrayList<CodeBlock>();
         analyzeCodeBlocks(text, list, delegate);
         if (delegate.isNotCancelled()) {
+            bracketsProvider.flush();
             withReceiver(r -> r.updateBracketProvider(this, bracketsProvider));
         }
         return list;
@@ -222,7 +231,6 @@ public class TextMateAnalyzer extends AsyncIncrementalAnalyzeManager<MyState, Sp
             int fontStyle = EncodedTokenAttributes.getFontStyle(metadata);
             var tokenType = EncodedTokenAttributes.getTokenType(metadata);
             if (language.createIdentifiers) {
-
                 if (tokenType == StandardTokenType.Other) {
                     var end = i + 1 == tokensLength ? lineC.length() : StringUtils.convertUnicodeOffsetToUtf16(line, lineTokens.getTokens()[2 * (i + 1)], surrogate);
                     if (end > startIndex && MyCharacter.isJavaIdentifierStart(line.charAt(startIndex))) {
@@ -239,7 +247,14 @@ public class TextMateAnalyzer extends AsyncIncrementalAnalyzeManager<MyState, Sp
                     }
                 }
             }
-            Span span = SpanFactory.obtain(startIndex, TextStyle.makeStyle(foreground + 255, 0, (fontStyle & FontStyle.Bold) != 0, (fontStyle & FontStyle.Italic) != 0, false));
+
+            Span span = SpanFactory.obtain(startIndex,
+                    TextStyle.makeStyle(
+                            foreground + 255, 0,
+                            (fontStyle & FontStyle.Bold) != 0, (fontStyle & FontStyle.Italic) != 0,
+                            false, false, tokenType
+                    )
+            );
 
             span.setExtra(tokenType);
 
@@ -253,6 +268,19 @@ public class TextMateAnalyzer extends AsyncIncrementalAnalyzeManager<MyState, Sp
             tokens.add(span);
         }
         return new LineTokenizeResult<>(new MyState(lineTokens.getRuleStack(), cachedRegExp == null ? null : cachedRegExp.search(OnigString.of(line), 0), IndentRange.computeIndentLevel(((ContentLine) lineC).getBackingCharArray(), line.length() - 1, language.getTabSize()), identifiers), null, tokens);
+    }
+
+    @Override
+    public @Nullable TreeContentSnapshot snapshot() {
+        var ref = getContentRef();
+        if (ref == null) {
+            return null;
+        }
+        Spans spans = null;
+        if (styles != null) {
+            spans = styles.spans;
+        }
+        return new TreeContentSnapshot(ref, spans);
     }
 
     @Override
@@ -276,9 +304,42 @@ public class TextMateAnalyzer extends AsyncIncrementalAnalyzeManager<MyState, Sp
     }
 
     @Override
+    public void insert(@NonNull CharPosition start, @NonNull CharPosition end, @NonNull CharSequence insertedText) {
+        super.insert(start, end, insertedText);
+        bracketsProvider.handleContentChanged(start, end);
+    }
+
+    @Override
+    public void delete(@NonNull CharPosition start, @NonNull CharPosition end, @NonNull CharSequence deletedText) {
+        super.delete(start, end, deletedText);
+        bracketsProvider.handleContentChanged(start, end);
+    }
+
+    @Override
     public void reset(@NonNull ContentReference content, @NonNull Bundle extraArguments) {
         super.reset(content, extraArguments);
         syncIdentifiers.clear();
+        styles = null;
+        bracketsProvider.init();
+    }
+
+    @Override
+    protected void sendUpdate(Styles styles, int startLine, int endLine) {
+        super.sendUpdate(styles, startLine, endLine);
+        this.styles = styles;
+        bracketsProvider.handleDidChangeTokens(new SequenceUpdateRange(startLine, endLine));
+    }
+
+    @Override
+    protected void sendNewStyles(Styles styles) {
+        super.sendNewStyles(styles);
+        this.styles = styles;
+        var ref = getContentRef();
+        var line = Integer.MAX_VALUE;
+        if (ref != null) {
+            line = ref.getLineCount() - 1;
+        }
+        bracketsProvider.handleDidChangeTokens(new SequenceUpdateRange(0, line));
     }
 
     @Override

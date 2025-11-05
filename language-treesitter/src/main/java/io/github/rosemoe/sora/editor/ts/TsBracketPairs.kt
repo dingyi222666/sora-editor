@@ -100,4 +100,12 @@ class TsBracketPairs(
         return null
     }
 
+    override fun getPairedBracketsAtRange(
+        text: Content,
+        leftPosition: Long,
+        rightPosition: Long
+    ): List<PairedBracket?>? {
+        TODO("Not yet implemented")
+    }
+
 }

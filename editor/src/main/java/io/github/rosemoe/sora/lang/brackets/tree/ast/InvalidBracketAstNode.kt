@@ -46,4 +46,8 @@ class InvalidBracketAstNode(
     override fun computeMinIndentation(offset: Length, content: ContentReference): Int {
         return Int.MAX_VALUE
     }
+
+    override fun toString(): String {
+        return "InvalidBracketAstNode(length=$length, closingBrackets=$missingOpeningBracketIds)"
+    }
 }

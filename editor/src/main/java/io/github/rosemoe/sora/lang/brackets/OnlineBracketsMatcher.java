@@ -24,6 +24,9 @@
 package io.github.rosemoe.sora.lang.brackets;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+
+import java.util.List;
 
 import io.github.rosemoe.sora.text.Content;
 
@@ -107,5 +110,11 @@ public class OnlineBracketsMatcher implements BracketsProvider {
             pairedBracket = tryComputePaired(text, index);
         }
         return pairedBracket;
+    }
+
+    @Nullable
+    @Override
+    public List<PairedBracket> getPairedBracketsAtRange(@NonNull Content text, long leftPosition, long rightPosition) {
+        return null;
     }
 }

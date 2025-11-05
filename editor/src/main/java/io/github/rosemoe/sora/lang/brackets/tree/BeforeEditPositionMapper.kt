@@ -44,30 +44,30 @@ class BeforeEditPositionMapper(
     }
 
     private fun translateOldToCur(oldOffsetObj: CharPosition): Length {
-        return if (oldOffsetObj.line - 1 == deltaLineIdxInOld) {
+        return if (oldOffsetObj.line  == deltaLineIdxInOld) {
             toLength(
-                oldOffsetObj.line - 1 + deltaOldToNewLineCount,
-                oldOffsetObj.column - 1 + deltaOldToNewColumnCount
+                oldOffsetObj.line  + deltaOldToNewLineCount,
+                oldOffsetObj.column  + deltaOldToNewColumnCount
             )
         } else {
             toLength(
-                oldOffsetObj.line - 1 + deltaOldToNewLineCount,
-                oldOffsetObj.column - 1
+                oldOffsetObj.line  + deltaOldToNewLineCount,
+                oldOffsetObj.column
             )
         }
     }
 
     private fun translateCurToOld(newOffset: Length): Length {
         val offsetObj = newOffset.charPosition
-        return if (offsetObj.line - 1 - deltaOldToNewLineCount == deltaLineIdxInOld) {
+        return if (offsetObj.line  - deltaOldToNewLineCount == deltaLineIdxInOld) {
             toLength(
-                offsetObj.line - 1 - deltaOldToNewLineCount,
-                offsetObj.column - 1 - deltaOldToNewColumnCount
+                offsetObj.line  - deltaOldToNewLineCount,
+                offsetObj.column  - deltaOldToNewColumnCount
             )
         } else {
             toLength(
-                offsetObj.line - 1 - deltaOldToNewLineCount,
-                offsetObj.column - 1
+                offsetObj.line  - deltaOldToNewLineCount,
+                offsetObj.column
             )
         }
     }
@@ -94,7 +94,7 @@ class BeforeEditPositionMapper(
                 deltaOldToNewLineCount += lineDelta
 
                 val previousColumnDelta =
-                    if (deltaLineIdxInOld == nextEdit.endOffsetBeforeObj.line - 1) {
+                    if (deltaLineIdxInOld == nextEdit.endOffsetBeforeObj.line ) {
                         deltaOldToNewColumnCount
                     } else {
                         0
@@ -102,7 +102,7 @@ class BeforeEditPositionMapper(
                 val columnDelta =
                     nextEditEndOffsetInCurObj.column - nextEditEndOffsetBeforeInCurObj.column
                 deltaOldToNewColumnCount = previousColumnDelta + columnDelta
-                deltaLineIdxInOld = nextEdit.endOffsetBeforeObj.line - 1
+                deltaLineIdxInOld = nextEdit.endOffsetBeforeObj.line
             } else {
                 // We are in or before the edit.
                 break

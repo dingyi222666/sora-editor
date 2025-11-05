@@ -30,11 +30,11 @@ open class TwoThreeListAstNode(
         else -> throw IllegalArgumentException("Invalid child index")
     }
 
-    override fun setChild(idx: Int, node: BaseAstNode) {
+    override fun setChild(idx: Int, child: BaseAstNode) {
         when (idx) {
-            0 -> _item1 = node
-            1 -> _item2 = node
-            2 -> _item3 = node
+            0 -> _item1 = child
+            1 -> _item2 = child
+            2 -> _item3 = child
             else -> throw IllegalArgumentException("Invalid child index")
         }
     }
@@ -109,5 +109,22 @@ open class TwoThreeListAstNode(
 
     override fun toMutable(): ListAstNode {
         return this
+    }
+
+    override fun toString(): String {
+        return buildString {
+            append("TwoThreeListAstNode(")
+            append("length=$length, ")
+            append("listHeight=$listHeight, ")
+            append("children=[")
+            append(_item1)
+            append(", ")
+            append(_item2)
+            if (_item3 != null) {
+                append(", ")
+                append(_item3)
+            }
+            append("])")
+        }
     }
 }

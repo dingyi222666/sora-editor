@@ -60,6 +60,10 @@ class BracketAstNode private constructor(
         return Int.MAX_VALUE
     }
 
+    override fun toString(): String {
+        return "BracketAstNode(length=$length, text='$text', kind=${bracketInfo.bracketText})"
+    }
+
     companion object {
         fun create(
             length: Length,

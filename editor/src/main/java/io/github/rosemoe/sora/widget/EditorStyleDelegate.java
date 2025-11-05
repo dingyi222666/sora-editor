@@ -29,6 +29,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import java.lang.ref.WeakReference;
+import java.util.List;
 
 import io.github.rosemoe.sora.event.SelectionChangeEvent;
 import io.github.rosemoe.sora.lang.analysis.AnalyzeManager;
@@ -43,6 +44,7 @@ public class EditorStyleDelegate implements StyleReceiver {
 
     private final WeakReference<CodeEditor> editorRef;
     private PairedBracket foundPair;
+    private List<PairedBracket> pairedBracketsInRange;
     private BracketsProvider bracketsProvider;
 
     EditorStyleDelegate(@NonNull CodeEditor editor) {

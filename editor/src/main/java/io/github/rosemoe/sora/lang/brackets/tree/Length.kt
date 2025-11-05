@@ -22,7 +22,7 @@ value class Length(val value: Long) {
         get() = IntPair.getSecond(value)
 
     val charPosition: CharPosition
-        get() = CharPosition(lineCount + 1, columnCount + 1)
+        get() = CharPosition(lineCount, columnCount)
 
     // [10 lines, 5 cols] + [ 0 lines, 3 cols] = [10 lines, 8 cols]
     // [10 lines, 5 cols] + [20 lines, 3 cols] = [30 lines, 3 cols]

@@ -259,6 +259,10 @@ open class BracketPairInfo(
 
     val closingBracketInfo: ClosingBracketKind?
         get() = bracketPairNode.closingBracket?.bracketInfo as? ClosingBracketKind
+
+    override fun toString(): String {
+        return "BracketPairInfo(range=$range, openingBracketRange=$openingBracketRange, closingBracketRange=$closingBracketRange, nestingLevel=$nestingLevel, nestingLevelOfEqualBracketType=$nestingLevelOfEqualBracketType, openingBracketInfo=$openingBracketInfo, closingBracketInfo=$closingBracketInfo)"
+    }
 }
 
 class BracketPairWithMinIndentationInfo(

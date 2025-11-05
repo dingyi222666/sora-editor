@@ -35,7 +35,7 @@ class TextBufferTokenizer(
     init {
         didPeek = false
         peeked = null
-        textBufferLineCount = content.getLineCount()
+        textBufferLineCount = content.getLineCount() - 1
         textBufferLastLineLength = content.getColumnCount(textBufferLineCount)
     }
 
@@ -43,7 +43,7 @@ class TextBufferTokenizer(
         get() = _offset
 
     override val length: Length
-        get() = toLength(textBufferLineCount - 1, textBufferLastLineLength)
+        get() = toLength(textBufferLineCount, textBufferLastLineLength)
 
     override fun getText(): CharSequence {
         return content
@@ -87,7 +87,7 @@ private class NonPeekableTextBufferTokenizer(
     private val spans: Spans,
     private val bracketTokens: BracketTokens
 ) {
-    private val textBufferLineCount: Int = textModel.getLineCount()
+    private val textBufferLineCount: Int = textModel.getLineCount() - 1
     private val textBufferLastLineLength: Int = textModel.getColumnCount(textBufferLineCount)
 
     private var lineIdx = 0
@@ -101,6 +101,30 @@ private class NonPeekableTextBufferTokenizer(
 
     private var reader: Spans.Reader? = null
 
+    /**
+     * Finds the token index at the given offset.
+     * Returns the index of the token that contains the given offset.
+     */
+    private fun findTokenIndexAtOffset(offset: Int): Int {
+        val tokens = lineTokens ?: return 0
+        if (tokens.isEmpty()) return 0
+
+        // Binary search to find the token that contains the offset
+        var left = 0
+        var right = tokens.size - 1
+
+        while (left < right) {
+            val mid = (left + right + 1) / 2
+            if (tokens[mid].column <= offset) {
+                left = mid
+            } else {
+                right = mid - 1
+            }
+        }
+
+        return left
+    }
+
     fun setPosition(lineIdx: Int, column: Int) {
         // We must not jump into a token!
         if (lineIdx == this.lineIdx) {
@@ -109,9 +133,7 @@ private class NonPeekableTextBufferTokenizer(
                 this.lineTokenOffset = if (this.lineCharOffset == 0) {
                     0
                 } else {
-                    lineTokens?.binarySearch {
-                        it.column - lineCharOffset
-                    } ?: 0
+                    findTokenIndexAtOffset(lineCharOffset)
                 }
             }
         } else {
@@ -123,7 +145,6 @@ private class NonPeekableTextBufferTokenizer(
     }
 
     fun read(): Token? {
-
         val reader = this.reader ?: spans.read()
         this.reader = reader
 
@@ -134,8 +155,8 @@ private class NonPeekableTextBufferTokenizer(
             return token
         }
 
-        if (lineIdx > textBufferLineCount - 1 ||
-            (lineIdx == textBufferLineCount - 1 && lineCharOffset >= textBufferLastLineLength)
+        if (lineIdx > textBufferLineCount  ||
+            (lineIdx == textBufferLineCount  && lineCharOffset >= textBufferLastLineLength)
         ) {
             // We are after the end
             return null
@@ -147,9 +168,7 @@ private class NonPeekableTextBufferTokenizer(
             lineTokenOffset = if (lineCharOffset == 0) {
                 0
             } else {
-                lineTokens?.binarySearch {
-                    it.column - lineCharOffset
-                } ?: 0
+                findTokenIndexAtOffset(lineCharOffset)
             }
         }
 
@@ -161,9 +180,9 @@ private class NonPeekableTextBufferTokenizer(
         var lengthHeuristic = 0
 
         while (true) {
-            val lineTokens = this.lineTokens ?: return null
+            val lineTokens = this.lineTokens ?: break
             val tokenCount = lineTokens.size
-            val line = this.line ?: return null
+            val line = this.line ?: break
 
             var peekedBracketToken: Token? = null
 
@@ -201,9 +220,9 @@ private class NonPeekableTextBufferTokenizer(
                 lengthHeuristic += endOffset - lineCharOffset
 
                 if (peekedBracketToken != null) {
-                    // Don't skip the entire token, as a single token could contain multiple brackets.
-
+                    // Don't skip the entire token, as a single token could contain multiple brackets
                     if (startLineIdx != lineIdx || startLineCharOffset != lineCharOffset) {
+                        println("$peekedBracketToken $startLineIdx $lineIdx $startLineCharOffset $lineCharOffset")
                         // There is text before the bracket
                         this.peekedToken = peekedBracketToken
                         break
@@ -218,7 +237,7 @@ private class NonPeekableTextBufferTokenizer(
                     lineCharOffset = endOffset
                 }
             } else {
-                if (lineIdx == textBufferLineCount - 1) {
+                if (lineIdx == textBufferLineCount) {
                     break
                 }
                 lineIdx++
