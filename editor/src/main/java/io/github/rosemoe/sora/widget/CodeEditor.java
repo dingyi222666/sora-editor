@@ -2487,6 +2487,7 @@ public class CodeEditor extends View implements ContentListener, Formatter.Forma
         if (!highlightBracketPair) {
             styleDelegate.clearMatchedBracketPair();
         } else {
+            styleDelegate.postUpdateMatchedBracketPair();
             styleDelegate.postUpdateBracketPair();
         }
         invalidate();

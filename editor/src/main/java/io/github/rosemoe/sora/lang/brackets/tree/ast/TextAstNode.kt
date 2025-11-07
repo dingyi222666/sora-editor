@@ -45,8 +45,8 @@ class TextAstNode(length: Length) : BaseAstNode(length) {
         // Text ast nodes don't have partial indentation (ensured by the tokenizer).
         // Thus, if this text node does not start at column 0, the first line cannot have any indentation at all.
         val startLineNumber =
-            (if (offset.columnCount == 0) offset.lineCount else offset.lineCount + 1) + 1
-        val endLineNumber = (offset + this.length).lineCount + 1
+            (if (offset.columnCount == 0) offset.lineCount else offset.lineCount)
+        val endLineNumber = (offset + this.length).lineCount
 
         var result = Int.MAX_VALUE
 

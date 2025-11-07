@@ -77,15 +77,15 @@ open class ArrayListAstNode(
 
     override fun toString(): String {
         return buildString {
-            append("ArrayListAstNode(")
-            append("length=$length, ")
-            append("listHeight=$listHeight, ")
-            append("children=[")
+            appendLine("ArrayListAstNode(")
+            appendLine("length=$length, ")
+            appendLine("listHeight=$listHeight, ")
+            appendLine("children=[")
             _children.forEachIndexed { index, child ->
                 if (index > 0) append(", ")
-                append(child)
+                appendLine(child)
             }
-            append("])")
+            appendLine("])")
         }
     }
 }

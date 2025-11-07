@@ -20,6 +20,8 @@ class CallbackIterable<T>(
 
     companion object {
         val empty = CallbackIterable<Nothing> { }
+
+        fun <T> empty()  = empty as CallbackIterable<T>
     }
 
     fun forEach(handler: (item: T) -> Unit) {

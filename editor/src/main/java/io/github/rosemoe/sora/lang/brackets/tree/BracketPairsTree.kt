@@ -7,7 +7,6 @@
 
 package io.github.rosemoe.sora.lang.brackets.tree
 
-import io.github.rosemoe.sora.lang.analysis.StyleUpdateRange
 import io.github.rosemoe.sora.lang.brackets.BracketInfo
 import io.github.rosemoe.sora.lang.brackets.BracketPairWithMinIndentationInfo
 import io.github.rosemoe.sora.lang.brackets.ClosingBracketKind
@@ -53,12 +52,15 @@ class BracketPairsTree(
     internal var initialAstWithoutTokens: BaseAstNode? = null
     internal var astWithTokens: BaseAstNode? = null
 
-
     private var queuedTextEditsForInitialAstWithoutTokens = mutableListOf<TextEditInfo>()
     private var queuedTextEdits = mutableListOf<TextEditInfo>()
     private val lock = ReentrantReadWriteLock()
     private val readLock = lock.readLock()
     private val writeLock = lock.writeLock()
+    private var content: ContentReference? = null
+    private var expectedVersion: Long = -1L
+    @Volatile
+    private var dirty: Boolean = true
 
     init {
         init()
@@ -80,49 +82,42 @@ class BracketPairsTree(
             astWithTokens = astWithTokensResult
             queuedTextEditsForInitialAstWithoutTokens.clear()
             queuedTextEdits.clear()
+            content = snapshot.content
+            expectedVersion = snapshot.content.documentVersion
+            dirty = false
         } finally {
             writeLock.unlock()
         }
     }
 
-    fun handleDidChangeTokens(event: StyleUpdateRange) {
-        val range = event.toRange()
-        val edit = TextEditInfo(
-            toLength(range.start.line, range.start.column),
-            toLength(range.end.line, range.end.column),
-            toLength(range.end.line - range.start.line + 1, 0)
-        )
 
-        handleEdits(edit, true)
-
-        /*if (!this.initialAstWithoutTokens) {
-            this.didChangeEmitter.fire();
-        }*/
+    fun handleContentChanged(
+        changeStart: CharPosition,
+        changeEnd: CharPosition,
+        changeText: CharSequence?
+    ) {
+        val startOffset = changeStart.toLength()
+        val endOffset = changeEnd.toLength()
+        val newLength = changeText?.let { lengthOfString(it) } ?: Length.ZERO
+        val edit = TextEditInfo(startOffset, endOffset, newLength)
+        handleEdits(edit)
     }
 
-
-    fun handleContentChanged(changeStart: CharPosition, changeEnd: CharPosition) {
-        val edit = TextEditInfo(
-            toLength(changeStart.line, changeStart.column),
-            toLength(changeStart.line, changeEnd.column),
-            toLength(changeEnd.line - changeStart.line + 1, 0)
-        )
-        handleEdits(edit, false)
-    }
-
-    private fun handleEdits(edits: TextEditInfo, tokenChange: Boolean) {
+    private fun handleEdits(edits: TextEditInfo) {
         // Lazily queue the edits and only apply them when the tree is accessed.
         writeLock.lock()
         try {
             val result = combineTextEditInfos(this.queuedTextEdits, listOf(edits))
             queuedTextEdits = result.toMutableList()
-            if (initialAstWithoutTokens != null && !tokenChange) {
+
+            if (initialAstWithoutTokens != null) {
                 queuedTextEditsForInitialAstWithoutTokens =
                     combineTextEditInfos(
                         queuedTextEditsForInitialAstWithoutTokens,
                         listOf(edits)
                     ).toMutableList()
             }
+            dirty = true
         } finally {
             writeLock.unlock()
         }
@@ -130,58 +125,74 @@ class BracketPairsTree(
 
     internal fun flushQueue() {
         while (true) {
-            var edits: List<TextEditInfo> = emptyList()
-            var initialEdits: List<TextEditInfo> = emptyList()
-            var previousAst: BaseAstNode? = null
-            var previousInitialAst: BaseAstNode? = null
-
+            val snapshot = snapshotProvider.snapshot() ?: return
+            val documentVersion = snapshot.content.documentVersion
+            var work: FlushWork? = null
             writeLock.lock()
             try {
-                val hasQueuedEdits =
-                    queuedTextEdits.isNotEmpty() || queuedTextEditsForInitialAstWithoutTokens.isNotEmpty()
-                if (!hasQueuedEdits) {
+                val pendingEdits = queuedTextEdits
+                val pendingInitialEdits = queuedTextEditsForInitialAstWithoutTokens
+                val previousAst = astWithTokens
+                val previousInitial = initialAstWithoutTokens
+                val shouldParseAst =
+                    previousAst == null || dirty || pendingEdits.isNotEmpty() || expectedVersion != documentVersion
+                val shouldParseInitial =
+                    previousInitial != null && (dirty || pendingInitialEdits.isNotEmpty() || expectedVersion != documentVersion)
+                if (!shouldParseAst && !shouldParseInitial) {
                     return
                 }
-                edits = queuedTextEdits
                 queuedTextEdits = mutableListOf()
-                previousAst = astWithTokens
-
-                initialEdits = queuedTextEditsForInitialAstWithoutTokens
                 queuedTextEditsForInitialAstWithoutTokens = mutableListOf()
-                previousInitialAst = initialAstWithoutTokens
+                val edits = if (shouldParseAst) pendingEdits else emptyList()
+                val initialEdits = if (shouldParseInitial) pendingInitialEdits else emptyList()
+                work = FlushWork(
+                    edits = edits,
+                    initialEdits = initialEdits,
+                    previousAst = previousAst,
+                    previousInitialAst = previousInitial,
+                    parseAstWithTokens = shouldParseAst,
+                    parseInitialAst = shouldParseInitial
+                )
+            } finally {
+                writeLock.unlock()
+            }
+            val actualWork = work
+
+            val updatedAst = if (actualWork.parseAstWithTokens) {
+                parseDocumentFromSnapshot(snapshot, actualWork.edits, actualWork.previousAst, false)
+            } else {
+                actualWork.previousAst
+            }
+            val updatedInitialAst = if (actualWork.parseInitialAst) {
+                parseDocumentFromSnapshot(snapshot, actualWork.initialEdits, actualWork.previousInitialAst, false)
+            } else {
+                actualWork.previousInitialAst
+            }
+
+            val hasRemainingWork: Boolean
+            writeLock.lock()
+            try {
+                if (actualWork.parseAstWithTokens) {
+                    astWithTokens = updatedAst
+                }
+                if (actualWork.parseInitialAst) {
+                    initialAstWithoutTokens = updatedInitialAst
+                    if (updatedInitialAst == null) {
+                        queuedTextEditsForInitialAstWithoutTokens.clear()
+                    }
+                }
+                content = snapshot.content
+                expectedVersion = documentVersion
+                val hasQueued =
+                    queuedTextEdits.isNotEmpty() || queuedTextEditsForInitialAstWithoutTokens.isNotEmpty()
+                dirty = hasQueued
+                hasRemainingWork = hasQueued
             } finally {
                 writeLock.unlock()
             }
 
-            val updatedAst =
-                if (edits.isNotEmpty()) parseDocumentFromTextBuffer(edits, previousAst, false)
-                    ?: previousAst else previousAst
-            val updatedInitialAst =
-                if (previousInitialAst != null && initialEdits.isNotEmpty()) {
-                    parseDocumentFromTextBuffer(initialEdits, previousInitialAst, false)
-                        ?: previousInitialAst
-                } else previousInitialAst
-
-            writeLock.lock()
-            try {
-                if (edits.isNotEmpty()) {
-                    astWithTokens = updatedAst
-                }
-                if (previousInitialAst != null && initialEdits.isNotEmpty()) {
-                    initialAstWithoutTokens = updatedInitialAst
-                    if (initialAstWithoutTokens == null) {
-                        queuedTextEditsForInitialAstWithoutTokens.clear()
-                    }
-                }
-
-                val hasRemainingWork =
-                    queuedTextEdits.isNotEmpty() ||
-                            queuedTextEditsForInitialAstWithoutTokens.isNotEmpty()
-                if (!hasRemainingWork) {
-                    return
-                }
-            } finally {
-                writeLock.unlock()
+            if (!hasRemainingWork) {
+                return
             }
         }
     }
@@ -209,27 +220,30 @@ class BracketPairsTree(
         return parseDocument(tokenizer, edits, previousAstClone, immutable)
     }
 
-    private fun parseDocumentFromTextBuffer(
-        edits: List<TextEditInfo>,
-        previousAst: BaseAstNode?,
-        immutable: Boolean
-    ): BaseAstNode? {
-        val snapshot = snapshotProvider.snapshot() ?: return null
-        return parseDocumentFromSnapshot(snapshot, edits, previousAst, immutable)
-    }
+    private data class FlushWork(
+        val edits: List<TextEditInfo>,
+        val initialEdits: List<TextEditInfo>,
+        val previousAst: BaseAstNode?,
+        val previousInitialAst: BaseAstNode?,
+        val parseAstWithTokens: Boolean,
+        val parseInitialAst: Boolean
+    )
 
     fun getBracketsInRange(
         range: TextRange,
         onlyColorizedBrackets: Boolean
     ): CallbackIterable<BracketInfo> {
-        flushQueue()
-
-        val startOffset = toLength(range.start.line, range.start.column)
-        val endOffset = toLength(range.end.line, range.end.column)
+        val startOffset = range.start.toLength()
+        val endOffset = range.end.toLength()
         return CallbackIterable({ cb ->
             readLock.lock()
             try {
                 val node = initialAstWithoutTokens ?: this.astWithTokens ?: return@CallbackIterable
+                val currentContent = content
+                if (currentContent != null && !currentContent.hasVersion(expectedVersion)) {
+                    markVersionMismatch()
+                    return@CallbackIterable
+                }
                 collectBrackets(
                     node,
                     Length.ZERO,
@@ -252,21 +266,22 @@ class BracketPairsTree(
         range: TextRange,
         includeMinIndentation: Boolean
     ): CallbackIterable<BracketPairWithMinIndentationInfo> {
-        flushQueue()
-
-        val startOffset = toLength(range.start.line, range.start.column)
-        val endOffset = toLength(range.end.line, range.end.column)
+        val startOffset = range.start.toLength()
+        val endOffset = range.end.toLength()
 
         return CallbackIterable { cb ->
             readLock.lock()
             try {
                 val node = initialAstWithoutTokens ?: this.astWithTokens ?: return@CallbackIterable
-
-                val snapshot = snapshotProvider.snapshot()
+                val currentContent = content
+                if (currentContent != null && !currentContent.hasVersion(expectedVersion)) {
+                    markVersionMismatch()
+                    return@CallbackIterable
+                }
                 val context = CollectBracketPairsContext(
                     cb,
                     includeMinIndentation,
-                    if (includeMinIndentation) snapshot?.content else null
+                    if (includeMinIndentation) currentContent else null
                 )
                 collectBracketPairs(
                     node,
@@ -285,16 +300,19 @@ class BracketPairsTree(
     }
 
     fun getFirstBracketAfter(position: CharPosition): FoundBracket? {
-        flushQueue()
-
         readLock.lock()
         return try {
             val node = this.initialAstWithoutTokens ?: this.astWithTokens ?: return null
+            val currentContent = content
+            if (currentContent != null && !currentContent.hasVersion(expectedVersion)) {
+                markVersionMismatch()
+                return null
+            }
             getFirstBracketAfter(
                 node,
                 Length.ZERO,
                 node.length,
-                toLength(position.line, position.column)
+                position.toLength()
             )
         } finally {
             readLock.unlock()
@@ -302,20 +320,35 @@ class BracketPairsTree(
     }
 
     fun getFirstBracketBefore(position: CharPosition): FoundBracket? {
-        flushQueue()
 
         readLock.lock()
         return try {
             val node = this.initialAstWithoutTokens ?: this.astWithTokens ?: return null
+            val currentContent = content
+            if (currentContent != null && !currentContent.hasVersion(expectedVersion)) {
+                markVersionMismatch()
+                return null
+            }
             getFirstBracketBefore(
                 node,
                 Length.ZERO,
                 node.length,
-                toLength(position.line, position.column)
+                position.toLength()
             )
         } finally {
             readLock.unlock()
         }
+    }
+
+    private fun ContentReference.hasVersion(expectedVersion: Long): Boolean {
+        if (expectedVersion < 0) {
+            return true
+        }
+        return documentVersion == expectedVersion
+    }
+
+    private fun markVersionMismatch() {
+        dirty = true
     }
 }
 
@@ -628,6 +661,8 @@ private fun collectBracketPairs(
         levelPerBracketType[pairNode.openingBracket.text] = existing + 1
 
         val openingBracketEnd = nodeOffsetStart + pairNode.openingBracket.length
+
+        // println("" + nodeOffsetStart.charPosition + " " + pairNode.openingBracket.length.charPosition)
         var minIndentation = -1
         if (context.includeMinIndentation) {
             val textModel = context.textModel
@@ -638,6 +673,13 @@ private fun collectBracketPairs(
                 )
             }
         }
+
+
+        /*println(
+            " " + pairNode.closingBracket + " " + openingBracketEnd.charPosition + " " + pairNode.child?.length?.charPosition + " "
+                    + ((openingBracketEnd + (pairNode.child?.length
+                ?: Length.ZERO)).charPosition)
+        )*/
 
         shouldContinue = context.push(
             BracketPairWithMinIndentationInfo(
@@ -706,18 +748,3 @@ private fun collectBracketPairs(
     return shouldContinue
 }
 
-fun StyleUpdateRange.toRange(): TextRange {
-
-    var startLine = 0
-    var endLine = 0
-    val iterator = lineIndexIterator(Int.MAX_VALUE)
-    while (iterator.hasNext()) {
-        val line = iterator.nextInt()
-        if (startLine == 0) {
-            startLine = line
-        }
-        endLine = line
-    }
-    // TODO: check range
-    return TextRange(CharPosition(startLine, 0), CharPosition(endLine + 1, 0))
-}

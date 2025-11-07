@@ -22,7 +22,7 @@ value class Length(val value: Long) {
         get() = IntPair.getSecond(value)
 
     val charPosition: CharPosition
-        get() = CharPosition(lineCount, columnCount)
+        get() = CharPosition(lineCount , columnCount)
 
     // [10 lines, 5 cols] + [ 0 lines, 3 cols] = [10 lines, 8 cols]
     // [10 lines, 5 cols] + [20 lines, 3 cols] = [30 lines, 3 cols]
@@ -50,7 +50,7 @@ value class Length(val value: Long) {
     fun diffNonNegative(other: Length): Length {
         // line-count of length1 is higher than line-count of length2
         // or they are equal and column-count of length1 is higher than column-count of length2
-        if (this.value >= other.value) {
+        if (other.value - value <= 0) {
             return ZERO
         }
 
@@ -81,7 +81,11 @@ value class Length(val value: Long) {
             return if (startLineCount != endLineCount) {
                 toLength(endLineCount - startLineCount, endColumnCount)
             } else {
-                toLength(0, endLineCount - startColumnCount)
+                val deltaColumn = endColumnCount - startColumnCount
+                require(deltaColumn >= 0) {
+                    "endColumnCount must be >= startColumnCount (start=$startColumnCount, end=$endColumnCount)"
+                }
+                toLength(0, deltaColumn)
             }
         }
     }
@@ -91,40 +95,40 @@ internal fun toLength(lineCount: Int, columnCount: Int): Length {
     return Length(IntPair.pack(lineCount, columnCount))
 }
 
+fun CharPosition.toLength(): Length {
+    return toLength(this.line, this.column)
+}
 
-internal fun TextRange.lengthOfRange(): CharPosition {
-    return if (start.line == end.line) {
-        CharPosition(0, start.column - end.column)
-    } else {
-        CharPosition(end.line - start.line, end.column)
+internal fun lengthOfString(text: CharSequence): Length {
+    var lineCount = 0
+    var columnCount = 0
+    var index = 0
+
+    while (index < text.length) {
+        when (text[index]) {
+            '\r' -> {
+                if (index + 1 < text.length && text[index + 1] == '\n') {
+                    index++
+                }
+                lineCount++
+                columnCount = 0
+            }
+
+            '\n' -> {
+                lineCount++
+                columnCount = 0
+            }
+
+            else -> {
+                columnCount++
+            }
+        }
+        index++
     }
+
+    return toLength(lineCount, columnCount)
 }
 
-
-internal fun String.toLength(): Length {
-    val lines = splitLine()
-    return toLength(lines.size, lines.last().length)
-}
-
-internal fun String.lengthOfStringObj(): CharPosition {
-    val lines = splitLine()
-    return CharPosition(lines.size - 1, lines.last().length - 1)
-}
-
-val splitLineRegex = Regex("\r\n|\r|\n")
-
-
-internal fun String.splitLine(): List<String> {
-    return split(splitLineRegex)
-}
-
-/**
- * Computes a numeric hash of the given length.
- */
-fun lengthHash(length: Length): Int {
-    // The value class automatically provides a suitable hashCode implementation.
-    return length.hashCode()
-}
 
 internal fun <T> Iterable<T>.sumLengths(lengthFn: (T) -> Length): Length {
     return fold(ZERO) { acc, item -> acc + lengthFn(item) }

@@ -114,17 +114,17 @@ open class TwoThreeListAstNode(
     override fun toString(): String {
         return buildString {
             append("TwoThreeListAstNode(")
-            append("length=$length, ")
-            append("listHeight=$listHeight, ")
-            append("children=[")
-            append(_item1)
-            append(", ")
-            append(_item2)
+            appendLine("length=$length, ")
+            appendLine("listHeight=$listHeight, ")
+            appendLine("children=[")
+            appendLine(_item1)
+            appendLine(", ")
+            appendLine(_item2)
             if (_item3 != null) {
-                append(", ")
-                append(_item3)
+                appendLine(", ")
+                appendLine(_item3)
             }
-            append("])")
+            appendLine("])")
         }
     }
 }

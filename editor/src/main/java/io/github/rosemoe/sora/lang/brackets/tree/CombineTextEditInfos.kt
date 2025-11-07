@@ -74,8 +74,8 @@ fun combineTextEditInfos(
     val result = mutableListOf<TextEditInfo>()
 
     fun pushEdit(startOffset: Length, endOffset: Length, newLength: Length) {
-        if (result.isNotEmpty() && result.last().endOffset.value == startOffset.value) {
-            val lastResult = result.last()
+        val lastResult = result.lastOrNull()
+        if (lastResult != null && lastResult.endOffset.value == startOffset.value) {
             result[result.lastIndex] = TextEditInfo(
                 lastResult.startOffset,
                 endOffset,
@@ -88,20 +88,16 @@ fun combineTextEditInfos(
 
     var s0offset = Length.ZERO
 
-    for (s1ToS2 in s1ToS2Map) {
-        val s0ToS1MapItems = nextS0ToS1MapWithS1LengthOf(s1ToS2.lengthBefore)
-
-        if (s1ToS2.modified) {
-            val s0Length = s0ToS1MapItems.sumLengths { it.lengthBefore }
-            val s0EndOffset = s0offset + s0Length
-            pushEdit(s0offset, s0EndOffset, s1ToS2.lengthAfter)
-            s0offset = s0EndOffset
-        } else {
-            for (s1 in s0ToS1MapItems) {
-                val s0startOffset = s0offset
-                s0offset += s1.lengthBefore
-                if (s1.modified) {
-                    pushEdit(s0startOffset, s0offset, s1.lengthAfter)
+    for (entry in s1ToS2Map) {
+        when (entry) {
+            S1ToS2Entry.CopyRemaining -> {
+                val s0ToS1MapItems = nextS0ToS1MapWithS1LengthOf(null)
+                for (s1 in s0ToS1MapItems) {
+                    val s0startOffset = s0offset
+                    s0offset += s1.lengthBefore
+                    if (s1.modified) {
+                        pushEdit(s0startOffset, s0offset, s1.lengthAfter)
+                    }
                 }
             }
         }
@@ -136,4 +132,9 @@ fun toLengthMapping(textEditInfos: List<TextEditInfo>): List<LengthMapping> {
     }
 
     return result
+}
+
+private sealed interface S1ToS2Entry {
+    data class Mapping(val mapping: LengthMapping) : S1ToS2Entry
+    object CopyRemaining : S1ToS2Entry
 }

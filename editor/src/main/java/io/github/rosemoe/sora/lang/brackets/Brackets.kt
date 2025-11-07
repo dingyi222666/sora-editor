@@ -7,7 +7,8 @@
 
 package io.github.rosemoe.sora.lang.brackets
 
-import android.util.ArraySet
+
+import androidx.collection.ArraySet
 import io.github.rosemoe.sora.lang.brackets.tree.ast.PairAstNode
 import io.github.rosemoe.sora.text.TextRange
 import java.util.regex.Pattern

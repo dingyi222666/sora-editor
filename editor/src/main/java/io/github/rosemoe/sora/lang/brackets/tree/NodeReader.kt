@@ -95,7 +95,7 @@ class NodeReader(node: BaseAstNode) {
             }
 
             // Parent is not undefined, because idxs is not empty
-            val parent = nextNodes.lastOrNull()!!
+            val parent = nextNodes.last()
             val nextChildIdx = getNextChildIdx(parent, idxs.last())
 
             if (nextChildIdx != -1) {

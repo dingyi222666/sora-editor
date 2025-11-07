@@ -92,12 +92,12 @@ class PairAstNode private constructor(
 
     override fun toString(): String {
         return buildString {
-            append("PairAstNode(")
-            append("length=$length, ")
-            append("opening=${openingBracket.text}, ")
-            append("child=$child, ")
-            append("closing=${closingBracket?.text ?: "null"}")
-            append(")")
+            appendLine("PairAstNode(")
+            appendLine("length=$length, ")
+            appendLine("opening=${openingBracket.text}, ")
+            appendLine("child=$child, ")
+            appendLine("closing=${closingBracket?.text ?: "null"}")
+            appendLine(")")
         }
     }
 

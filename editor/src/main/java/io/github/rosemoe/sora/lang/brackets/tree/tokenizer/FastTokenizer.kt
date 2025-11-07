@@ -48,7 +48,10 @@ internal class FastTokenizer(
                         val tokenLength = if (lastTokenEndLine == curLineCount) {
                             toLength(0, curOffset - lastTokenEndOffset)
                         } else {
-                            toLength(curLineCount - lastTokenEndLine, curOffset - lastLineBreakOffset)
+                            toLength(
+                                curLineCount - lastTokenEndLine,
+                                curOffset - lastLineBreakOffset
+                            )
                         }
                         tokensList.add(TokenAllocator.obtainTextToken(tokenLength))
                     }

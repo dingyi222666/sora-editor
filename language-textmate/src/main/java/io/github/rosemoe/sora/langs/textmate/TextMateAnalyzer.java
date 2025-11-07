@@ -44,10 +44,8 @@ import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 import io.github.rosemoe.sora.lang.analysis.AsyncIncrementalAnalyzeManager;
-import io.github.rosemoe.sora.lang.analysis.SequenceUpdateRange;
 import io.github.rosemoe.sora.lang.brackets.BracketsConfiguration;
 import io.github.rosemoe.sora.lang.brackets.RawBracketsConfiguration;
 import io.github.rosemoe.sora.lang.brackets.TreeBaseBracketPairProvider;
@@ -71,6 +69,7 @@ import io.github.rosemoe.sora.text.Content;
 import io.github.rosemoe.sora.text.ContentLine;
 import io.github.rosemoe.sora.text.ContentReference;
 import io.github.rosemoe.sora.util.ArrayList;
+import io.github.rosemoe.sora.util.IntPair;
 import io.github.rosemoe.sora.util.MyCharacter;
 import io.github.rosemoe.sora.widget.schemes.EditorColorScheme;
 import kotlin.Pair;
@@ -113,8 +112,11 @@ public class TextMateAnalyzer extends AsyncIncrementalAnalyzeManager<MyState, Sp
             configuration = languageConfiguration;
             var pairs = languageConfiguration.getBrackets();
             if (pairs != null && !pairs.isEmpty()) {
-                var brackets = pairs.stream().map(pair -> new Pair<>(pair.open, pair.close))
-                        .collect(Collectors.toUnmodifiableList());
+                var brackets = new ArrayList<Pair<String, String>>();
+
+                for (var pair : pairs) {
+                    brackets.add(new Pair<>(pair.open, pair.close));
+                }
 
                 var rawConfiguration = new RawBracketsConfiguration(
                         brackets,
@@ -174,7 +176,6 @@ public class TextMateAnalyzer extends AsyncIncrementalAnalyzeManager<MyState, Sp
         var list = new ArrayList<CodeBlock>();
         analyzeCodeBlocks(text, list, delegate);
         if (delegate.isNotCancelled()) {
-            bracketsProvider.flush();
             withReceiver(r -> r.updateBracketProvider(this, bracketsProvider));
         }
         return list;
@@ -305,14 +306,14 @@ public class TextMateAnalyzer extends AsyncIncrementalAnalyzeManager<MyState, Sp
 
     @Override
     public void insert(@NonNull CharPosition start, @NonNull CharPosition end, @NonNull CharSequence insertedText) {
+        bracketsProvider.handleContentChanged(start, end, insertedText);
         super.insert(start, end, insertedText);
-        bracketsProvider.handleContentChanged(start, end);
     }
 
     @Override
     public void delete(@NonNull CharPosition start, @NonNull CharPosition end, @NonNull CharSequence deletedText) {
+        bracketsProvider.handleContentChanged(start, end, deletedText);
         super.delete(start, end, deletedText);
-        bracketsProvider.handleContentChanged(start, end);
     }
 
     @Override
@@ -327,19 +328,30 @@ public class TextMateAnalyzer extends AsyncIncrementalAnalyzeManager<MyState, Sp
     protected void sendUpdate(Styles styles, int startLine, int endLine) {
         super.sendUpdate(styles, startLine, endLine);
         this.styles = styles;
-        bracketsProvider.handleDidChangeTokens(new SequenceUpdateRange(startLine, endLine));
+        updateBrackets();
     }
 
     @Override
     protected void sendNewStyles(Styles styles) {
         super.sendNewStyles(styles);
         this.styles = styles;
+        updateBrackets();
+    }
+
+    private void updateBrackets() {
         var ref = getContentRef();
-        var line = Integer.MAX_VALUE;
-        if (ref != null) {
-            line = ref.getLineCount() - 1;
+        if (ref == null) return;
+        var content = ref.getReference();
+
+        try {
+            bracketsProvider.flush();
+
+            bracketsProvider.getPairedBracketsAtRange(content, IntPair.pack(0, 0), IntPair.pack(content.getLineCount() - 1, content.getColumnCount(content.getLineCount() - 1)));
+        } catch (Exception e) {
+            bracketsProvider.getPairedBracketsAtRange(content, IntPair.pack(0, 0), IntPair.pack(0, 0));
+
+            e.printStackTrace();
         }
-        bracketsProvider.handleDidChangeTokens(new SequenceUpdateRange(0, line));
     }
 
     @Override

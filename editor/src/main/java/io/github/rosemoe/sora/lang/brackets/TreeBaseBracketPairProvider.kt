@@ -26,7 +26,6 @@ package io.github.rosemoe.sora.lang.brackets
 
 import androidx.annotation.WorkerThread
 import io.github.rosemoe.sora.lang.analysis.StyleUpdateRange
-import io.github.rosemoe.sora.lang.brackets.AsyncBracketsCollector
 import io.github.rosemoe.sora.lang.brackets.tree.BracketPairsTree
 import io.github.rosemoe.sora.lang.brackets.tree.TreeContentSnapshotProvider
 import io.github.rosemoe.sora.lang.brackets.tree.tokenizer.BracketTokens
@@ -51,12 +50,13 @@ class TreeBaseBracketPairProvider(
 
     private val tree = BracketPairsTree(snapshotProvider, bracketTokens)
 
-    fun handleContentChanged(start: CharPosition, end: CharPosition) {
-        tree.handleContentChanged(start, end)
-    }
 
-    fun handleDidChangeTokens(range: StyleUpdateRange) {
-        tree.handleDidChangeTokens(range)
+    fun handleContentChanged(
+        start: CharPosition,
+        end: CharPosition,
+        changeText: CharSequence?
+    ) {
+        tree.handleContentChanged(start, end, changeText)
     }
 
     @WorkerThread
@@ -116,11 +116,21 @@ class TreeBaseBracketPairProvider(
                 if (cancellationToken.isCancelled) {
                     return@iterate false
                 }
-                convertToPairedBracket(indexer, info)?.let { pairs.add(it) }
+
+                convertToPairedBracket(indexer, info)
+                    ?.let { pairs.add(it) }
+
                 true
             }
 
         cancellationToken.throwIfCancelled()
+
+        pairs.filter {
+            it.leftIndex >= it.rightIndex
+        }.let {
+            println("888 $it")
+        }
+
         return if (pairs.isEmpty()) null else pairs
     }
 
@@ -161,12 +171,13 @@ class TreeBaseBracketPairProvider(
     ): PairedBracket? {
         val closingRange = info.closingBracketRange ?: return null
         val closingInfo = info.closingBracketInfo ?: return null
+
+        // println(info)
         val openingStartIndex = indexer.getCharIndex(
             info.openingBracketRange.start.line,
             info.openingBracketRange.start.column
         )
 
-        println(closingRange.start)
         val closingStartIndex = indexer.getCharIndex(
             closingRange.start.line,
             closingRange.start.column

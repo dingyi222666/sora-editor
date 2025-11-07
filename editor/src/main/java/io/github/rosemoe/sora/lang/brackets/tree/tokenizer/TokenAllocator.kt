@@ -133,6 +133,6 @@ internal object TokenAllocator {
         }
     }
 
-    private const val MAX_NODE_LIST_POOL = 256
-    private const val MAX_NODE_LIST_SIZE = 256
+    private const val MAX_NODE_LIST_POOL = 1024
+    private const val MAX_NODE_LIST_SIZE = 1024
 }

@@ -30,14 +30,14 @@ data class LengthMapping(
 
         return if (remainingLengthAfter.isZero()) {
             Pair(this, null)
-        } else if (this.modified) {
+        } else if (modified) {
             Pair(
                 LengthMapping(true, this.lengthBefore, lengthAfter),
                 LengthMapping(true, Length.ZERO, remainingLengthAfter)
             )
         } else {
             Pair(
-                LengthMapping(this.modified, lengthAfter, lengthAfter),
+                LengthMapping(false, lengthAfter, lengthAfter),
                 LengthMapping(false, remainingLengthAfter, remainingLengthAfter)
             )
         }

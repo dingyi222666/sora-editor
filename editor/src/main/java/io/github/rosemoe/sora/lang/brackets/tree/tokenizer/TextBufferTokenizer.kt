@@ -14,6 +14,7 @@ import io.github.rosemoe.sora.lang.styling.Spans
 import io.github.rosemoe.sora.lang.styling.StandardTokenType
 import io.github.rosemoe.sora.lang.styling.TextStyle
 import io.github.rosemoe.sora.text.ContentReference
+import kotlin.math.max
 
 
 class TextBufferTokenizer(
@@ -154,9 +155,9 @@ private class NonPeekableTextBufferTokenizer(
             lineCharOffset += lengthGetColumnCountIfZeroLineCount(token.length)
             return token
         }
-      
-        if (lineIdx > textBufferLineCount -1 ||
-            (lineIdx == textBufferLineCount -1  && lineCharOffset >= textBufferLastLineLength)
+
+        if (lineIdx > textBufferLineCount ||
+            (lineIdx == textBufferLineCount && lineCharOffset >= textBufferLastLineLength)
         ) {
             // We are after the end
             return null
@@ -201,7 +202,7 @@ private class NonPeekableTextBufferTokenizer(
 
                 val endOffset = lineTokens.getEndOffset(lineTokenOffset)
                 // Is there a bracket token next? Only consume text.
-                if (/*containsBracketType && */isOther && lineCharOffset < endOffset) {
+                if (isOther && lineCharOffset < endOffset) {
                     val text = line.substring(lineCharOffset, endOffset)
 
                     val regexp = bracketTokens.regExpGlobal
@@ -266,7 +267,13 @@ private class NonPeekableTextBufferTokenizer(
         // If a token contains some proper indentation, it also contains \n{INDENTATION+}(?!{INDENTATION}),
         // unless the line is too long.
         // Thus, the min indentation of the document is the minimum min indentation of every text node.
-        val length = Length.lengthDiff(startLineIdx, startLineCharOffset, lineIdx, lineCharOffset)
+        val length =
+            Length.lengthDiff(
+                startLineIdx,
+                startLineCharOffset,
+                lineIdx,
+                lineCharOffset
+            )
         return TokenAllocator.obtainTextToken(length)
     }
 
@@ -278,12 +285,12 @@ private class NonPeekableTextBufferTokenizer(
     }
 
     fun List<Span>.getEndOffset(offset: Int): Int {
-        if (offset == lastIndex) {
-            return line?.lastIndex ?: 0
+        return if (offset == lastIndex) {
+            max(line?.length ?: 0, 0)
+        } else {
+            val next = get(offset + 1)
+            next.column
         }
-        val current = get(offset)
-        val next = get(offset + 1)
-        return next.column - current.column
     }
 }
 

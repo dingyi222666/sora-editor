@@ -69,10 +69,9 @@ abstract class AsyncBracketsCollector(private val threadNamePrefix: String) : Br
 
     override fun setReceiver(receiver: StyleReceiver?) {
         this.receiver = receiver
-        if (receiver != null) {
-            receiver.updateMatchedBracketPair(this, lastMatchedPair)
-            receiver.updateBracketPairsInRange(this, lastBracketPairs)
-        }
+
+        lastBracketPairs = null
+        lastMatchedPair = null
     }
 
     override fun destroy() {
@@ -91,11 +90,7 @@ abstract class AsyncBracketsCollector(private val threadNamePrefix: String) : Br
             return
         }
         val generation = matchedGeneration.incrementAndGet()
-        runCatching {
-            error("getPairedBracketAt")
-        }.onFailure {
-            println(it)
-        }
+
         val future = executor.submit {
             val token = CancellationToken(matchedGeneration, generation)
             try {
@@ -115,11 +110,6 @@ abstract class AsyncBracketsCollector(private val threadNamePrefix: String) : Br
     override fun getPairedBracketsAtRange(text: Content, leftPosition: Long, rightPosition: Long) {
         if (destroyed.get()) {
             return
-        }
-        runCatching {
-            error("getPairedBracketsAtRange")
-        }.onFailure {
-            println(it)
         }
         val generation = rangeGeneration.incrementAndGet()
         val future = executor.submit {
@@ -160,7 +150,6 @@ abstract class AsyncBracketsCollector(private val threadNamePrefix: String) : Br
         private val generation: AtomicLong,
         private val target: Long
     ) {
-
         val isCancelled: Boolean
             get() = target != generation.get() || Thread.currentThread().isInterrupted
 

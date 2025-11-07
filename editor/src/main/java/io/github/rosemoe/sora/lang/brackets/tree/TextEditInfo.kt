@@ -7,7 +7,9 @@
 
 package io.github.rosemoe.sora.lang.brackets.tree
 
-class TextEditInfo(
+import io.github.rosemoe.sora.text.CharPosition
+
+data class TextEditInfo(
     val startOffset: Length,
     val endOffset: Length,
     val newLength: Length
@@ -15,5 +17,21 @@ class TextEditInfo(
 
     override fun toString(): String {
         return "[${startOffset.charPosition}...${endOffset.charPosition}) -> ${newLength.charPosition}"
+    }
+}
+
+internal class TextEditInfoCache(
+    startOffset: Length,
+    endOffset: Length,
+    textLength: Length
+) {
+    val endOffsetBeforeObj: CharPosition = endOffset.charPosition
+    val endOffsetAfterObj: CharPosition = (startOffset + textLength).charPosition
+    val offsetObj: CharPosition = startOffset.charPosition
+
+    companion object {
+        fun from(edit: TextEditInfo): TextEditInfoCache {
+            return TextEditInfoCache(edit.startOffset, edit.endOffset, edit.newLength)
+        }
     }
 }
