@@ -22,13 +22,14 @@
  *     additional information or have any questions
  ******************************************************************************/
 
-package io.github.rosemoe.sora.lang.brackets
+package io.github.rosemoe.sora.langs.textmate.brackets
 
 import androidx.annotation.WorkerThread
-import io.github.rosemoe.sora.lang.analysis.StyleUpdateRange
-import io.github.rosemoe.sora.lang.brackets.tree.BracketPairsTree
-import io.github.rosemoe.sora.lang.brackets.tree.TreeContentSnapshotProvider
-import io.github.rosemoe.sora.lang.brackets.tree.tokenizer.BracketTokens
+import io.github.rosemoe.sora.lang.brackets.BracketsProvider
+import io.github.rosemoe.sora.lang.brackets.PairedBracket
+import io.github.rosemoe.sora.langs.textmate.brackets.tree.BracketPairsTree
+import io.github.rosemoe.sora.langs.textmate.brackets.tree.TreeContentSnapshotProvider
+import io.github.rosemoe.sora.langs.textmate.brackets.tree.tokenizer.BracketTokens
 import io.github.rosemoe.sora.text.CharPosition
 import io.github.rosemoe.sora.text.Content
 import io.github.rosemoe.sora.text.Indexer
@@ -36,17 +37,18 @@ import io.github.rosemoe.sora.text.TextRange
 import io.github.rosemoe.sora.util.IntPair
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.time.measureTimedValue
 
 /**
- * Base implementation of [BracketsProvider] backed by [io.github.rosemoe.sora.lang.brackets.tree.BracketPairsTree] that works with
+ * Base implementation of [io.github.rosemoe.sora.lang.brackets.BracketsProvider] backed by [io.github.rosemoe.sora.lang.brackets.tree.BracketPairsTree] that works with
  * asynchronous analyzers. The provider expects tree updates to be performed from a worker
  * thread, while read operations may happen from any thread. All accesses to the underlying
  * tree are serialized by an internal lock.
  */
-class TreeBaseBracketPairProvider(
+class TextMateBracketPairProvider(
     snapshotProvider: TreeContentSnapshotProvider,
     bracketTokens: BracketTokens
-) : AsyncBracketsCollector("TreeBrackets") {
+) : BracketsProvider {
 
     private val tree = BracketPairsTree(snapshotProvider, bracketTokens)
 
@@ -60,42 +62,36 @@ class TreeBaseBracketPairProvider(
     }
 
     @WorkerThread
-    fun flush() {
-        tree.flushQueue()
+    fun flush(isTokenChange: Boolean) {
+        tree.flushQueue(isTokenChange)
     }
 
     fun init() {
         tree.init()
     }
 
-    @WorkerThread
-    override fun computeMatchedBracket(
-        text: Content,
-        index: Int,
-        cancellationToken: CancellationToken
-    ): PairedBracket? {
+
+    override fun getPairedBracketAt(text: Content, index: Int): PairedBracket? {
         if (index < 0 || index > text.length) {
             return null
         }
 
         val indexer = text.indexer
-        cancellationToken.throwIfCancelled()
-        val info = findPairAt(indexer, text, index, cancellationToken) ?: return null
-        cancellationToken.throwIfCancelled()
+        val info = findPairAt(indexer, text, index) ?: return null
+
         return convertToPairedBracket(indexer, info)
     }
 
-    @WorkerThread
-    override fun computeBracketPairsInRange(
+
+    override fun getPairedBracketsInRange(
         text: Content,
-        leftPosition: Long,
-        rightPosition: Long,
-        cancellationToken: CancellationToken
-    ): List<PairedBracket>? {
-        val startLine = IntPair.getFirst(leftPosition)
-        val startColumn = IntPair.getSecond(leftPosition)
-        val endLine = IntPair.getFirst(rightPosition)
-        val endColumn = IntPair.getSecond(rightPosition)
+        leftRange: Long,
+        rightRange: Long
+    ): List<PairedBracket>? = measureTimedValue {
+        val startLine = IntPair.getFirst(leftRange)
+        val startColumn = IntPair.getSecond(leftRange)
+        val endLine = IntPair.getFirst(rightRange)
+        val endColumn = IntPair.getSecond(rightRange)
 
         val start = clampPosition(text, startLine, startColumn)
         val end = clampPosition(text, endLine, endColumn)
@@ -113,33 +109,29 @@ class TreeBaseBracketPairProvider(
 
         tree.getBracketPairsInRange(range, includeMinIndentation = false)
             .iterate { info ->
-                if (cancellationToken.isCancelled) {
-                    return@iterate false
-                }
-
                 convertToPairedBracket(indexer, info)
                     ?.let { pairs.add(it) }
 
                 true
             }
 
-        cancellationToken.throwIfCancelled()
-
-        pairs.filter {
+       /* pairs.filter {
             it.leftIndex >= it.rightIndex
         }.let {
             println("888 $it")
-        }
+        }*/
 
-        return if (pairs.isEmpty()) null else pairs
+        if (pairs.isEmpty()) null else pairs
+    }.let {
+       // println("TextMateBracketPairProvider:getPairedBracketsInRange $it")
+        it.value
     }
 
     private fun findPairAt(
         indexer: Indexer,
         text: Content,
         index: Int,
-        cancellationToken: CancellationToken
-    ): BracketPairWithMinIndentationInfo? {
+    ): BracketPairWithMinIndentationInfo? = measureTimedValue {
         if (index < 0 || index >= text.length) {
             return null
         }
@@ -150,9 +142,6 @@ class TreeBaseBracketPairProvider(
         var matched: BracketPairWithMinIndentationInfo? = null
         tree.getBracketPairsInRange(searchRange, includeMinIndentation = false)
             .iterate { info ->
-                if (cancellationToken.isCancelled) {
-                    return@iterate false
-                }
                 if (
                     info.openingBracketRange.isInPosition(position) ||
                     info.closingBracketRange?.isInPosition(position) == true
@@ -162,15 +151,18 @@ class TreeBaseBracketPairProvider(
                 }
                 true
             }
-        return matched
+        matched
+    }.let {
+       // println("TextMateBracketPairProvider:findPairAt $it")
+        it.value
     }
 
     private fun convertToPairedBracket(
         indexer: Indexer,
         info: BracketPairWithMinIndentationInfo
-    ): PairedBracket? {
-        val closingRange = info.closingBracketRange ?: return null
-        val closingInfo = info.closingBracketInfo ?: return null
+    ): PairedBracket?  = runCatching {
+        val closingRange = info.closingBracketRange ?: return@runCatching null
+        val closingInfo = info.closingBracketInfo ?: return@runCatching null
 
         // println(info)
         val openingStartIndex = indexer.getCharIndex(
@@ -187,10 +179,10 @@ class TreeBaseBracketPairProvider(
         val closingLength = max(0, closingInfo.bracketText.length)
 
         if (openingLength <= 0 || closingLength <= 0) {
-            return null
+            return@runCatching null
         }
 
-        return PairedBracket(
+        PairedBracket(
             openingStartIndex,
             openingLength,
             closingStartIndex,
@@ -198,6 +190,10 @@ class TreeBaseBracketPairProvider(
             info.nestingLevel
         )
     }
+        .onFailure {
+          // println(it)
+        }
+        .getOrNull()
 
     private fun clampPosition(text: Content, line: Int, column: Int): CharPosition {
         val maxLine = max(0, text.lineCount - 1)

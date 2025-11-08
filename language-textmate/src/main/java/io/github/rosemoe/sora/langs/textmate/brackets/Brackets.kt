@@ -1,36 +1,55 @@
 /*******************************************************************************
- * ---------------------------------------------------------------------------------------------
- *  *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  *  Licensed under the MIT License. See License.txt in the project root for license information.
- *  *--------------------------------------------------------------------------------------------
+ *    sora-editor - the awesome code editor for Android
+ *    https://github.com/Rosemoe/sora-editor
+ *    Copyright (C) 2020-2025  Rosemoe
+ *
+ *     This library is free software; you can redistribute it and/or
+ *     modify it under the terms of the GNU Lesser General Public
+ *     License as published by the Free Software Foundation; either
+ *     version 2.1 of the License, or (at your option) any later version.
+ *
+ *     This library is distributed in the hope that it will be useful,
+ *     but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ *     Lesser General Public License for more details.
+ *
+ *     You should have received a copy of the GNU Lesser General Public
+ *     License along with this library; if not, write to the Free Software
+ *     Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
+ *     USA
+ *
+ *     Please contact Rosemoe by email 2073412493@qq.com if you need
+ *     additional information or have any questions
  ******************************************************************************/
 
-package io.github.rosemoe.sora.lang.brackets
+package io.github.rosemoe.sora.langs.textmate.brackets
+
+
+
 
 
 import androidx.collection.ArraySet
-import io.github.rosemoe.sora.lang.brackets.tree.ast.PairAstNode
+import io.github.rosemoe.sora.langs.textmate.brackets.tree.ast.PairAstNode
+import io.github.rosemoe.sora.langs.textmate.brackets.tree.parseDocument
 import io.github.rosemoe.sora.text.TextRange
+import org.eclipse.tm4e.languageconfiguration.internal.model.CharacterPair
 import java.util.regex.Pattern
 
 
-data class RawBracketsConfiguration(
-    val brackets: List<Pair<String, String>> = emptyList(),
-    val colorizedBracketPairs: List<Pair<String, String>> = emptyList()
-)
 
 /**
  * Captures all bracket related configurations for a single language.
  * Immutable.
  */
 class BracketsConfiguration(
-    config: RawBracketsConfiguration
+    val brackets: List<CharacterPair> = emptyList(),
+    val colorizedBracketPairs: List<CharacterPair>? = null
 ) {
     private val _openingBrackets: Map<String, OpeningBracketKind>
     private val _closingBrackets: Map<String, ClosingBracketKind>
 
     init {
-        val bracketPairs = filterValidBrackets(config.brackets)
+        val bracketPairs = filterValidBrackets(brackets)
 
         // Cache for opening bracket infos
         val openingBracketInfos =
@@ -63,7 +82,9 @@ class BracketsConfiguration(
             }
         }
 
-        for ((open, close) in bracketPairs) {
+        for (pair in bracketPairs) {
+            val open = pair.open
+            val close = pair.close
             val (openingInfo, openingClosing) = getOrCreateOpeningBracket(open)
             val (closingInfo, closingOpening, _) = getOrCreateClosingBracket(close)
 
@@ -72,14 +93,16 @@ class BracketsConfiguration(
         }
 
         // Treat colorized brackets as brackets, and mark them as colorized.
-        val colorizedBracketPairs = config.colorizedBracketPairs?.let { filterValidBrackets(it) }
+        val colorizedBracketPairs = colorizedBracketPairs?.let { filterValidBrackets(it) }
         // If not configured: Take all brackets except `<` ... `>`
         // Many languages set < ... > as bracket pair, even though they also use it as comparison operator.
         // This leads to problems when colorizing this bracket, so we exclude it if not explicitly configured otherwise.
         // https://github.com/microsoft/vscode/issues/132476
-            ?: bracketPairs.filter { (open, close) -> !(open == "<" && close == ">") }
+            ?: bracketPairs.filter { pair -> !(pair.open == "<" && pair.close == ">") }
 
-        for ((open, close) in colorizedBracketPairs) {
+        for (pair in colorizedBracketPairs) {
+            val open = pair.open
+            val close = pair.close
             val (openingInfo, openingClosing) = getOrCreateOpeningBracket(open)
             val (closingInfo, closingOpening, closingOpeningColorized) = getOrCreateClosingBracket(
                 close
@@ -135,8 +158,8 @@ class BracketsConfiguration(
         return createBracketOrRegExp(brackets.toList(), flags, wholeWord)
     }
 
-    private fun filterValidBrackets(brackets: List<Pair<String, String>>): List<Pair<String, String>> =
-        brackets.filter { (open, close) -> open.isNotEmpty() && close.isNotEmpty() }
+    private fun filterValidBrackets(brackets: List<CharacterPair>): List<CharacterPair> =
+        brackets.filter { pair -> pair.open.isNotEmpty() && pair.close.isNotEmpty() }
 
     private fun createBracketOrRegExp(
         brackets: List<String>,
