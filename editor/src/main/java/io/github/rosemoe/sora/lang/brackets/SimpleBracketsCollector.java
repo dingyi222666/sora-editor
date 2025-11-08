@@ -34,7 +34,7 @@ import io.github.rosemoe.sora.text.Content;
  *
  * @author Rosemoe
  */
-public class SimpleBracketsCollector extends BaseBracketsProvider {
+public class SimpleBracketsCollector implements BracketsProvider {
 
     private final SparseIntArray mapping;
 
@@ -73,7 +73,7 @@ public class SimpleBracketsCollector extends BaseBracketsProvider {
 
 
     @Override
-    protected PairedBracket onGetPairedBracketAt(@NonNull Content text, int index) {
+    public PairedBracket getPairedBracketAt(@NonNull Content text, int index) {
         var res = index - 1 >= 0 ? getForIndex(index - 1) : null;
         if (res == null) {
             res = getForIndex(index);

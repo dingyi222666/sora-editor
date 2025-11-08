@@ -5,7 +5,7 @@
  *  *--------------------------------------------------------------------------------------------
  ******************************************************************************/
 
-package io.github.rosemoe.sora.lang.brackets.tree
+package io.github.rosemoe.sora.langs.textmate.brackets.tree
 
 import kotlin.math.max
 import kotlin.math.min

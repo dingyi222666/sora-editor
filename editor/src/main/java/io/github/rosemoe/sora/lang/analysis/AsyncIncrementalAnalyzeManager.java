@@ -28,6 +28,7 @@ import android.util.Log;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.annotation.WorkerThread;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -156,19 +157,32 @@ public abstract class AsyncIncrementalAnalyzeManager<S, T> extends BaseAnalyzeMa
         super.destroy();
     }
 
-    protected void sendNewStyles(Styles styles) {
+    @WorkerThread
+    protected void onStyleUpdated(Styles styles, int startLine, int endLine) {};
+
+    @WorkerThread
+    protected void onThreadMessageHandled(){};
+
+    private void sendNewStyles(Styles styles) {
         final var r = getReceiver();
         if (r != null) {
+            var shadow = getContentRef();
+            if (shadow != null) {
+                onStyleUpdated(styles, 0, shadow.getLineCount() - 1);
+            }
             r.setStyles(this, styles);
         }
+
     }
 
-    protected void sendUpdate(Styles styles, int startLine, int endLine) {
+    private void sendUpdate(Styles styles, int startLine, int endLine) {
         final var r = getReceiver();
         if (r != null) {
+            onStyleUpdated(styles, startLine, endLine);
             r.updateStyles(this, styles, new SequenceUpdateRange(startLine, endLine));
         }
     }
+
 
     /**
      * Compute code blocks
@@ -183,6 +197,15 @@ public abstract class AsyncIncrementalAnalyzeManager<S, T> extends BaseAnalyzeMa
             throw new IllegalThreadStateException();
         }
         return ((AsyncIncrementalAnalyzeManager<?, ?>.LooperThread) thread).styles;
+    }
+
+    @Nullable
+    protected Content getManagedContent() {
+        var thread = Thread.currentThread();
+        if (thread.getClass() != AsyncIncrementalAnalyzeManager.LooperThread.class) {
+           return null;
+        }
+        return ((AsyncIncrementalAnalyzeManager<?, ?>.LooperThread) thread).shadowed;
     }
 
     private static class LockedSpans implements Spans {
@@ -445,6 +468,7 @@ public abstract class AsyncIncrementalAnalyzeManager<S, T> extends BaseAnalyzeMa
         }
 
         private void initialize() {
+            onThreadMessageHandled();
             styles = new Styles(spans = new LockedSpans());
             S state = getInitialState();
             var mdf = spans.modify();
@@ -479,6 +503,7 @@ public abstract class AsyncIncrementalAnalyzeManager<S, T> extends BaseAnalyzeMa
                     case MSG_MOD:
                         int updateStart = 0, updateEnd = 0;
                         if (!abort && !isInterrupted()) {
+                            onThreadMessageHandled();
                             var mod = (TextModification) msg.obj;
                             int startLine = IntPair.getFirst(mod.start);
                             int endLine = IntPair.getFirst(mod.end);

@@ -5,7 +5,7 @@
  *  *--------------------------------------------------------------------------------------------
  ******************************************************************************/
 
-package io.github.rosemoe.sora.lang.brackets.tree
+package io.github.rosemoe.sora.langs.textmate.brackets.tree
 
 /**
  * Combines two sequences of text edits into a single unified sequence.

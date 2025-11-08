@@ -5,7 +5,7 @@
  *  *--------------------------------------------------------------------------------------------
  ******************************************************************************/
 
-package io.github.rosemoe.sora.lang.brackets.tree.ast
+package io.github.rosemoe.sora.langs.textmate.brackets.tree.ast
 
 /*******************************************************************************
  *    sora-editor - the awesome code editor for Android

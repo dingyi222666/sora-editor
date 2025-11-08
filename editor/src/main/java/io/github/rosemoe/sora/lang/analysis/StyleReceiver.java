@@ -89,16 +89,4 @@ public interface StyleReceiver {
      */
     void updateBracketProvider(@NonNull AnalyzeManager sourceManager, @Nullable BracketsProvider provider);
 
-    /**
-     * Update the currently matched bracket pair.
-     */
-    default void updateMatchedBracketPair(@NonNull BracketsProvider provider, @Nullable PairedBracket pair) {
-    }
-
-    /**
-     * Update the set of matched bracket pairs within a range.
-     */
-    default void updateBracketPairsInRange(@NonNull BracketsProvider provider, @Nullable List<PairedBracket> pairs) {
-    }
-
 }

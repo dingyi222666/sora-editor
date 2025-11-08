@@ -25,8 +25,10 @@ package io.github.rosemoe.sora.lang.brackets;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.annotation.UiThread;
 
-import io.github.rosemoe.sora.lang.analysis.StyleReceiver;
+import java.util.List;
+
 import io.github.rosemoe.sora.text.Content;
 
 /**
@@ -37,24 +39,18 @@ import io.github.rosemoe.sora.text.Content;
 public interface BracketsProvider {
 
     /**
-     * Register the {@link StyleReceiver} that should receive bracket updates.
-     *
-     * @param receiver the receiver to notify, or {@code null} to detach the current one
-     */
-    void setReceiver(@Nullable StyleReceiver receiver);
-
-    /**
-     * Release any resources held by this provider and stop dispatching updates.
-     */
-    void destroy();
-
-    /**
      * Get left and right brackets position in text
      *
      * @param text  The text in editor
      * @param index Index of cursor in text
      */
-    void getPairedBracketAt(@NonNull Content text, int index);
+    @UiThread
+    @Nullable
+    PairedBracket getPairedBracketAt(@NonNull Content text, int index);
 
-    void getPairedBracketsAtRange(@NonNull Content text, long leftPosition, long rightPosition);
+    @UiThread
+    @Nullable
+    default List<PairedBracket> getPairedBracketsInRange(@NonNull Content text, long leftRange, long rightRange) {
+        return null;
+    }
 }

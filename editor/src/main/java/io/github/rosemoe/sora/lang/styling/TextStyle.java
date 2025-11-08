@@ -49,15 +49,6 @@ public class TextStyle {
      * Edit texts in the region will not cause auto-completion to work
      */
     public final static long NO_COMPLETION_BIT = STRIKETHROUGH_BIT << 1;
-    /**
-     * Token type bits
-     */
-    public final static long TOKEN_TYPE_BITS = ((1L << 2) - 1) << 42;
-    public final static int TOKEN_TYPE_SHIFT = 42;
-    /**
-     * Token type set flag bit - indicates whether tokenType has been explicitly set
-     */
-    public final static long TOKEN_TYPE_SET_BIT = 1L << 44;
 
     /**
      * Convenient method
@@ -77,20 +68,6 @@ public class TextStyle {
     public static long makeStyle(int foregroundColorId, boolean noCompletion) {
         checkColorId(foregroundColorId);
         return ((long) foregroundColorId) | (noCompletion ? NO_COMPLETION_BIT : 0);
-    }
-
-    /**
-     * Convenient method with token type
-     *
-     * @see #makeStyle(int, int, boolean, boolean, boolean, boolean, int)
-     */
-    public static long makeStyle(int foregroundColorId, int tokenType, boolean noCompletion) {
-        checkColorId(foregroundColorId);
-        checkTokenType(tokenType);
-        return ((long) foregroundColorId)
-                | (noCompletion ? NO_COMPLETION_BIT : 0)
-                | (((long) tokenType) << TOKEN_TYPE_SHIFT)
-                | TOKEN_TYPE_SET_BIT;
     }
 
     /**
@@ -125,32 +102,6 @@ public class TextStyle {
                 | (noCompletion ? NO_COMPLETION_BIT : 0);
     }
 
-    /**
-     * Make a TextStyle with the given style arguments including token type
-     * <p>
-     * Note: colorId must be less than 20 bits, tokenType must be 0-3
-     *
-     * @see #BOLD_BIT
-     * @see #ITALICS_BIT
-     * @see #STRIKETHROUGH_BIT
-     * @see #NO_COMPLETION_BIT
-     * @see StandardTokenType
-     */
-    public static long makeStyle(int foregroundColorId, int backgroundColorId, boolean bold,
-                                 boolean italic, boolean strikeThrough, boolean noCompletion, int tokenType) {
-        checkColorId(foregroundColorId);
-        checkColorId(backgroundColorId);
-        checkTokenType(tokenType);
-        return ((long) foregroundColorId) +
-                (((long) backgroundColorId) << COLOR_ID_BIT_COUNT)
-                | (bold ? BOLD_BIT : 0)
-                | (italic ? ITALICS_BIT : 0)
-                | (strikeThrough ? STRIKETHROUGH_BIT : 0)
-                | (noCompletion ? NO_COMPLETION_BIT : 0)
-                | (((long) tokenType) << TOKEN_TYPE_SHIFT)
-                | TOKEN_TYPE_SET_BIT;
-    }
-
     public static int getForegroundColorId(long style) {
         return (int) (style & FOREGROUND_BITS);
     }
@@ -179,27 +130,9 @@ public class TextStyle {
         return style & (BOLD_BIT + ITALICS_BIT + STRIKETHROUGH_BIT);
     }
 
-    public static int getTokenType(long style) {
-        if ((style & TOKEN_TYPE_SET_BIT) == 0) {
-            return -1;
-        }
-        return (int) ((style & TOKEN_TYPE_BITS) >> TOKEN_TYPE_SHIFT);
-    }
-
-    public static long setTokenType(long style, int tokenType) {
-        checkTokenType(tokenType);
-        return (style & ~TOKEN_TYPE_BITS) | (((long) tokenType) << TOKEN_TYPE_SHIFT) | TOKEN_TYPE_SET_BIT;
-    }
-
     public static void checkColorId(int colorId) {
         if (colorId > (1 << COLOR_ID_BIT_COUNT) - 1 || colorId < 0) {
             throw new IllegalArgumentException("color id must be positive and bit count is less than " + COLOR_ID_BIT_COUNT);
-        }
-    }
-
-    public static void checkTokenType(int tokenType) {
-        if (tokenType > (1 << 2) - 1 || tokenType < 0) {
-            throw new IllegalArgumentException("token type must be positive and bit count is less than " + 2);
         }
     }
 

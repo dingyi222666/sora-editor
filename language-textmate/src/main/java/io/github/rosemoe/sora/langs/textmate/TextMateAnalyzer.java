@@ -46,12 +46,6 @@ import java.util.List;
 import java.util.Objects;
 
 import io.github.rosemoe.sora.lang.analysis.AsyncIncrementalAnalyzeManager;
-import io.github.rosemoe.sora.lang.brackets.BracketsConfiguration;
-import io.github.rosemoe.sora.lang.brackets.RawBracketsConfiguration;
-import io.github.rosemoe.sora.lang.brackets.TreeBaseBracketPairProvider;
-import io.github.rosemoe.sora.lang.brackets.tree.TreeContentSnapshot;
-import io.github.rosemoe.sora.lang.brackets.tree.TreeContentSnapshotProvider;
-import io.github.rosemoe.sora.lang.brackets.tree.tokenizer.BracketTokens;
 import io.github.rosemoe.sora.lang.completion.IdentifierAutoComplete;
 import io.github.rosemoe.sora.lang.styling.CodeBlock;
 import io.github.rosemoe.sora.lang.styling.Span;
@@ -59,6 +53,11 @@ import io.github.rosemoe.sora.lang.styling.SpanFactory;
 import io.github.rosemoe.sora.lang.styling.Spans;
 import io.github.rosemoe.sora.lang.styling.Styles;
 import io.github.rosemoe.sora.lang.styling.TextStyle;
+import io.github.rosemoe.sora.langs.textmate.brackets.BracketsConfiguration;
+import io.github.rosemoe.sora.langs.textmate.brackets.TextMateBracketPairProvider;
+import io.github.rosemoe.sora.langs.textmate.brackets.tree.TreeContentSnapshot;
+import io.github.rosemoe.sora.langs.textmate.brackets.tree.TreeContentSnapshotProvider;
+import io.github.rosemoe.sora.langs.textmate.brackets.tree.tokenizer.BracketTokens;
 import io.github.rosemoe.sora.langs.textmate.folding.FoldingHelper;
 import io.github.rosemoe.sora.langs.textmate.folding.IndentRange;
 import io.github.rosemoe.sora.langs.textmate.registry.ThemeRegistry;
@@ -69,14 +68,13 @@ import io.github.rosemoe.sora.text.Content;
 import io.github.rosemoe.sora.text.ContentLine;
 import io.github.rosemoe.sora.text.ContentReference;
 import io.github.rosemoe.sora.util.ArrayList;
-import io.github.rosemoe.sora.util.IntPair;
 import io.github.rosemoe.sora.util.MyCharacter;
 import io.github.rosemoe.sora.widget.schemes.EditorColorScheme;
-import kotlin.Pair;
 
 public class TextMateAnalyzer extends AsyncIncrementalAnalyzeManager<MyState, Span> implements FoldingHelper, ThemeRegistry.ThemeChangeListener, TreeContentSnapshotProvider {
 
     private final IGrammar grammar;
+
     private Theme theme;
     private final TextMateLanguage language;
     private final LanguageConfiguration configuration;
@@ -87,7 +85,7 @@ public class TextMateAnalyzer extends AsyncIncrementalAnalyzeManager<MyState, Sp
 
     private OnigRegExp cachedRegExp;
     private boolean foldingOffside;
-    private TreeBaseBracketPairProvider bracketsProvider;
+    private TextMateBracketPairProvider bracketsProvider;
     final IdentifierAutoComplete.SyncIdentifiers syncIdentifiers = new IdentifierAutoComplete.SyncIdentifiers();
 
     @Nullable
@@ -110,21 +108,16 @@ public class TextMateAnalyzer extends AsyncIncrementalAnalyzeManager<MyState, Sp
 
         if (languageConfiguration != null) {
             configuration = languageConfiguration;
-            var pairs = languageConfiguration.getBrackets();
+            var pairs = languageConfiguration.getColorizedBracketPairs();
+
+            if (pairs == null || pairs.isEmpty()) {
+                pairs = languageConfiguration.getBrackets();
+            }
             if (pairs != null && !pairs.isEmpty()) {
-                var brackets = new ArrayList<Pair<String, String>>();
-
-                for (var pair : pairs) {
-                    brackets.add(new Pair<>(pair.open, pair.close));
-                }
-
-                var rawConfiguration = new RawBracketsConfiguration(
-                        brackets,
-                        Collections.emptyList()
-                );
-                bracketsProvider = new TreeBaseBracketPairProvider(this, BracketTokens.createFromLanguage(
+                this.bracketsProvider = new TextMateBracketPairProvider(this, BracketTokens.createFromLanguage(
                         new BracketsConfiguration(
-                                rawConfiguration
+                                pairs,
+                                languageConfiguration.getColorizedBracketPairs()
                         )
                 ));
             }
@@ -229,6 +222,7 @@ public class TextMateAnalyzer extends AsyncIncrementalAnalyzeManager<MyState, Sp
             }
             int metadata = lineTokens.getTokens()[2 * i + 1];
             int foreground = EncodedTokenAttributes.getForeground(metadata);
+            int backgroud = EncodedTokenAttributes.getBackground(metadata);
             int fontStyle = EncodedTokenAttributes.getFontStyle(metadata);
             var tokenType = EncodedTokenAttributes.getTokenType(metadata);
             if (language.createIdentifiers) {
@@ -251,9 +245,9 @@ public class TextMateAnalyzer extends AsyncIncrementalAnalyzeManager<MyState, Sp
 
             Span span = SpanFactory.obtain(startIndex,
                     TextStyle.makeStyle(
-                            foreground + 255, 0,
+                            foreground + 255, backgroud + 255,
                             (fontStyle & FontStyle.Bold) != 0, (fontStyle & FontStyle.Italic) != 0,
-                            false, false, tokenType
+                            (fontStyle & FontStyle.Strikethrough) != 0, false
                     )
             );
 
@@ -273,14 +267,16 @@ public class TextMateAnalyzer extends AsyncIncrementalAnalyzeManager<MyState, Sp
 
     @Override
     public @Nullable TreeContentSnapshot snapshot() {
-        var ref = getContentRef();
+        var ref = getManagedContent();
         if (ref == null) {
             return null;
         }
-        Spans spans = null;
-        if (styles != null) {
-            spans = styles.spans;
+        Spans spans;
+
+        if (styles == null) {
+            return new TreeContentSnapshot(ref, null);
         }
+        spans = styles.spans;
         return new TreeContentSnapshot(ref, spans);
     }
 
@@ -306,12 +302,14 @@ public class TextMateAnalyzer extends AsyncIncrementalAnalyzeManager<MyState, Sp
 
     @Override
     public void insert(@NonNull CharPosition start, @NonNull CharPosition end, @NonNull CharSequence insertedText) {
+        styles = null;
         bracketsProvider.handleContentChanged(start, end, insertedText);
         super.insert(start, end, insertedText);
     }
 
     @Override
     public void delete(@NonNull CharPosition start, @NonNull CharPosition end, @NonNull CharSequence deletedText) {
+        styles = null;
         bracketsProvider.handleContentChanged(start, end, deletedText);
         super.delete(start, end, deletedText);
     }
@@ -321,44 +319,36 @@ public class TextMateAnalyzer extends AsyncIncrementalAnalyzeManager<MyState, Sp
         super.reset(content, extraArguments);
         syncIdentifiers.clear();
         styles = null;
-        bracketsProvider.init();
+    }
+
+
+    @Override
+    protected void onStyleUpdated(Styles styles, int startLine, int endLine) {
+        this.styles = styles;
+        if (styles == null) {
+            bracketsProvider.init();
+            return;
+        }
+        updateBrackets(true);
     }
 
     @Override
-    protected void sendUpdate(Styles styles, int startLine, int endLine) {
-        super.sendUpdate(styles, startLine, endLine);
-        this.styles = styles;
-        updateBrackets();
+    protected void onThreadMessageHandled() {
+
+        updateBrackets(false);
     }
 
-    @Override
-    protected void sendNewStyles(Styles styles) {
-        super.sendNewStyles(styles);
-        this.styles = styles;
-        updateBrackets();
-    }
-
-    private void updateBrackets() {
+    private void updateBrackets(boolean isTokenChange) {
         var ref = getContentRef();
         if (ref == null) return;
-        var content = ref.getReference();
 
-        try {
-            bracketsProvider.flush();
-
-            bracketsProvider.getPairedBracketsAtRange(content, IntPair.pack(0, 0), IntPair.pack(content.getLineCount() - 1, content.getColumnCount(content.getLineCount() - 1)));
-        } catch (Exception e) {
-            bracketsProvider.getPairedBracketsAtRange(content, IntPair.pack(0, 0), IntPair.pack(0, 0));
-
-            e.printStackTrace();
-        }
+        bracketsProvider.flush(isTokenChange);
     }
 
     @Override
     public void destroy() {
         super.destroy();
         if (bracketsProvider != null) {
-            bracketsProvider.destroy();
             bracketsProvider = null;
         }
         themeRegistry.removeListener(this);

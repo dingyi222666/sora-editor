@@ -1,24 +1,41 @@
 /*******************************************************************************
- * ---------------------------------------------------------------------------------------------
- *  *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  *  Licensed under the MIT License. See License.txt in the project root for license information.
- *  *--------------------------------------------------------------------------------------------
+ *    sora-editor - the awesome code editor for Android
+ *    https://github.com/Rosemoe/sora-editor
+ *    Copyright (C) 2020-2025  Rosemoe
+ *
+ *     This library is free software; you can redistribute it and/or
+ *     modify it under the terms of the GNU Lesser General Public
+ *     License as published by the Free Software Foundation; either
+ *     version 2.1 of the License, or (at your option) any later version.
+ *
+ *     This library is distributed in the hope that it will be useful,
+ *     but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ *     Lesser General Public License for more details.
+ *
+ *     You should have received a copy of the GNU Lesser General Public
+ *     License along with this library; if not, write to the Free Software
+ *     Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
+ *     USA
+ *
+ *     Please contact Rosemoe by email 2073412493@qq.com if you need
+ *     additional information or have any questions
  ******************************************************************************/
 
-package io.github.rosemoe.sora.lang.brackets.tree.tokenizer
+package io.github.rosemoe.sora.langs.textmate.brackets.tree.tokenizer
 
-import io.github.rosemoe.sora.lang.brackets.tree.Length
-import io.github.rosemoe.sora.lang.brackets.tree.toLength
 import io.github.rosemoe.sora.lang.styling.Span
 import io.github.rosemoe.sora.lang.styling.Spans
-import io.github.rosemoe.sora.lang.styling.StandardTokenType
 import io.github.rosemoe.sora.lang.styling.TextStyle
-import io.github.rosemoe.sora.text.ContentReference
+import io.github.rosemoe.sora.langs.textmate.brackets.tree.Length
+import io.github.rosemoe.sora.langs.textmate.brackets.tree.toLength
+import io.github.rosemoe.sora.text.Content
+import org.eclipse.tm4e.core.internal.grammar.tokenattrs.StandardTokenType
 import kotlin.math.max
 
 
 class TextBufferTokenizer(
-    private val content: ContentReference,
+    private val content: Content,
     spans: Spans,
     bracketTokens: BracketTokens
 ) : Tokenizer {
@@ -84,11 +101,11 @@ class TextBufferTokenizer(
  * Does not support peek.
  */
 private class NonPeekableTextBufferTokenizer(
-    private val textModel: ContentReference,
+    private val textModel: Content,
     private val spans: Spans,
     private val bracketTokens: BracketTokens
 ) {
-    private val textBufferLineCount: Int = textModel.getLineCount() - 1
+    private val textBufferLineCount: Int = textModel.lineCount - 1
     private val textBufferLastLineLength: Int = textModel.getColumnCount(textBufferLineCount)
 
     private var lineIdx = 0
@@ -278,10 +295,7 @@ private class NonPeekableTextBufferTokenizer(
     }
 
     fun List<Span>.getMetadata(offset: Int): Int? {
-        val style = get(offset).style
-        val tokenType = TextStyle.getTokenType(style)
-
-        return if (tokenType == -1) null else tokenType
+        return get(offset).extra as? Int?
     }
 
     fun List<Span>.getEndOffset(offset: Int): Int {

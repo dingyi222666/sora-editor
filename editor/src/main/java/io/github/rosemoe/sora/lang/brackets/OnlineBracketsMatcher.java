@@ -32,7 +32,7 @@ import io.github.rosemoe.sora.text.Content;
  *
  * @author Rosemoe
  */
-public class OnlineBracketsMatcher extends BaseBracketsProvider {
+public class OnlineBracketsMatcher implements BracketsProvider {
 
     private final char[] pairs;
     private final int limit;
@@ -98,7 +98,7 @@ public class OnlineBracketsMatcher extends BaseBracketsProvider {
     }
 
     @Override
-    protected PairedBracket onGetPairedBracketAt(@NonNull Content text, int index) {
+    public PairedBracket getPairedBracketAt(@NonNull Content text, int index) {
         PairedBracket pairedBracket = null;
         if (index > 0) {
             pairedBracket = tryComputePaired(text, index - 1);

@@ -59,6 +59,8 @@ dependencies {
     implementation(libs.jcodings)
     implementation(libs.joni)
 
+    implementation(libs.androidx.collection)
+
     implementation(libs.snakeyaml.engine)
     implementation(libs.jdt.annotation)
 

@@ -5,7 +5,7 @@
  *  *--------------------------------------------------------------------------------------------
  ******************************************************************************/
 
-package io.github.rosemoe.sora.lang.brackets.tree
+package io.github.rosemoe.sora.langs.textmate.brackets.tree
 
 /**
  * Represents a mapping of content length transformations during text edits.

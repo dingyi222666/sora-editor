@@ -25,18 +25,6 @@
 package io.github.rosemoe.sora.lang.styling
 
 /**
- * Standard token types for syntax highlighting
- *
- * @author Rosemoe
- */
-object StandardTokenType {
-    const val Other = 0
-    const val Comment = 1
-    const val String = 2
-    const val RegEx = 3
-}
-
-/**
  * Make a text style
  *
  * @see io.github.rosemoe.sora.lang.styling.TextStyle.makeStyle
@@ -46,17 +34,4 @@ fun textStyle(
     italic: Boolean = false, strikethrough: Boolean = false, noCompletion: Boolean = false
 ): Long {
     return TextStyle.makeStyle(foreground, background, bold, italic, strikethrough, noCompletion)
-}
-
-/**
- * Make a text style with token type
- *
- * @see io.github.rosemoe.sora.lang.styling.TextStyle.makeStyle
- */
-fun textStyle(
-    foreground: Int, background: Int = 0, bold: Boolean = false,
-    italic: Boolean = false, strikethrough: Boolean = false, noCompletion: Boolean = false,
-    tokenType: Int
-): Long {
-    return TextStyle.makeStyle(foreground, background, bold, italic, strikethrough, noCompletion, tokenType)
 }
